@@ -1,6 +1,0 @@
-@echo off
-rem -----±àÂë£ºANSI-----
-setlocal enabledelayedexpansion
-cd "×é¼þ"
-start mshta vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","","","runas",1)(window.close)
-exit
