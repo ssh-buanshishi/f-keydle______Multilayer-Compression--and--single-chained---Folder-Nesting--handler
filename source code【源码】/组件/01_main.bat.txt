@@ -16,11 +16,19 @@ if exist "%windir%\SysWOW64" (
         if !errorlevel! NEQ 0 (
             rem 需要先删除，如果直接copy会访问失败。
             del /f /q "BandizipPro_portable\Bandizip.exe"
+            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
+            if not exist "BandizipPro_portable\Bandizip.exe" (
+                copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
+            )
+        )
+    rem 不存在就复制一份
+    ) else (
+        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
+        if not exist "BandizipPro_portable\Bandizip.exe" (
             copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
         )
-        rem 不存在就复制一份
-    ) else (
-        copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
     )
 ) else (
     rem 检查是否存在bandizip
@@ -31,13 +39,28 @@ if exist "%windir%\SysWOW64" (
         if !errorlevel! NEQ 0 (
             rem 需要先删除，如果直接copy会访问失败。
             del /f /q "BandizipPro_portable\Bandizip.exe"
+            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
+            if not exist "BandizipPro_portable\Bandizip.exe" (
+                copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
+            )
+        )
+    rem 不存在就复制一份
+    ) else (
+        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
+        if not exist "BandizipPro_portable\Bandizip.exe" (
             copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
         )
-        rem 不存在就复制一份
-    ) else (
-        copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
     )
 )
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
 goto receive
 
 :receive
@@ -48,12 +71,10 @@ set /p input=
 if not defined input (exit)
 rem 统一去掉两侧的双引号，方便下面确定盘符。
 set target_path=%input:"=%
-set origin_path=%~dp0
-rem “dp0”末尾自带“\”，下面这一步去掉它。
-set origin_path=!origin_path:~0,-1!
-rem 去掉英文双引号干扰后，盘符就是第一第二个字符。
-set target_drivename=%target_path:~0,2%
-set origin_drivename=%~d0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
 
 if exist "!target_path!" (
     cls
@@ -64,9 +85,7 @@ if exist "!target_path!" (
 )
 
 :process
-cd\
-%origin_drivename%
-cd "%origin_path%"
+cd /d "%origin_path%"
 
 echo 正在处理中，请耐心等待……
 
@@ -151,9 +170,7 @@ if !have_password! EQU 1 (
         )
     )
 
-    cd\
-    %target_drivename%
-    cd "%target_path%"
+    cd /d "%target_path%"
 
     rem 启动刚刚复制过来的“子”执行器
     start "【指定的窗口标题】" /min /wait "_child_excuter_1.bat"
@@ -163,18 +180,14 @@ if !have_password! EQU 1 (
     rem 蒙一个最常用的密码
     echo 123456>"!target_path!\_password_.txt"
     
-    cd\
-    %target_drivename%
-    cd "%target_path%"
+    cd /d "%target_path%"
 
     rem 启动刚刚复制过来的“子”执行器
     start "【指定的窗口标题】" /min /wait "_child_excuter_1.bat"
 )
 
 
-cd\
-%target_drivename%
-cd "%target_path%"
+cd /d "%target_path%"
 
 rem 执行清理工作
 del /f /s /q "_bdzip_core_address_.txt" >nul 2>nul
@@ -187,9 +200,7 @@ del /f /s /q "_folder_names_record_.txt" >nul 2>nul
 del /f /s /q "_checker_record_.txt" >nul 2>nul
 rem "_current_path_.txt"被移走到detector目录下了，不需要清理
 
-cd\
-%origin_drivename%
-cd "%origin_path%"
+cd /d "%origin_path%"
 
 rem 进行用户定义的删除指定文件操作，读取配置
 rem 获取“删除指定文件起始线”的行数
@@ -234,18 +245,15 @@ if !have_something_to_delete! EQU 1 (
                 set del_content=%%t
 
                 rem 删除操作是在目标目录里的，考虑方便，直接借鉴了密码循环的那部分。
-                cd\
-                %target_drivename%
-                cd "%target_path%"
-
-                rem 删除指定文件
-                del /f /s /q "!del_content!" >nul 2>nul
+                cd /d "%target_path%"
+                if !errorlevel! EQU 0 (
+                    rem 删除指定文件
+                    del /f /s /q "!del_content!" >nul 2>nul
+                )
 
                 rem 循环for里引用的“配置解压密码和配置删除指定文件.txt”在这个bat文件的目录里，
                 rem 这里不清楚for里面的t变量是否是一开始就全部从文件中读取、列出安排好的，所以要返回原目录。
-                cd\
-                %origin_drivename%
-                cd "%origin_path%"
+                cd /d "%origin_path%"
             )
         )    
     )
