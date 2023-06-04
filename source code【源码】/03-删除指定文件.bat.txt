@@ -2,5 +2,5 @@
 rem -----编码：ANSI-----
 setlocal enabledelayedexpansion
 cd "组件"
-start mshta vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","","","runas",1)(window.close)
+start "【指定窗口标题】" "mshta" "vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","","","runas",1)(window.close)"
 exit
