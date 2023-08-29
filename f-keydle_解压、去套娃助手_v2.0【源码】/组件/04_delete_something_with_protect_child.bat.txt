@@ -1,0 +1,75 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title ｜子执行器｜
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set target_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+rem 读取【组件】文件夹的绝对路径
+for /f "delims=" %%t in (_origin_path_.txt) do (set origin_path=%%t)
+
+rem 统一去掉两侧的双引号
+set origin_path=!origin_path:"=!
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+cd /d "%origin_path%\extracter"
+start "【标记压缩文件中】" /min /wait "extracter.exe" 5 "!target_path!"
+
+cd /d "!target_path!"
+rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+for /d %%j in ("*") do (
+    cd "%%j"
+    if !errorlevel! EQU 0 (
+        if not exist "%~nx0" (mklink /h "%~nx0" "..\%~nx0" > nul)
+        if not exist "%~nx0" (copy /y "..\%~nx0" ".\" > nul)
+
+        if not exist "_压缩文件识别器_.exe" (mklink /h "_压缩文件识别器_.exe" "..\_压缩文件识别器_.exe" > nul)
+        if not exist "_压缩文件识别器_.exe" (copy /y "..\_压缩文件识别器_.exe" ".\" > nul)
+
+        if not exist "_origin_path_.txt" (mklink /h "_origin_path_.txt" "..\_origin_path_.txt" > nul)
+        if not exist "_origin_path_.txt" (copy /y "..\_origin_path_.txt" ".\" > nul)
+
+        if not exist "_rm_list_.txt" (mklink /h "_rm_list_.txt" "..\_rm_list_.txt" > nul)
+        if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" > nul)
+        
+        rem 启动刚刚复制过来的“子”执行器
+        start "【指定的标题】" /min /wait "%~nx0"
+
+        cd..
+    )
+)
+
+rem 执行清理工作
+cd /d "!target_path!"
+del /f /q "_压缩文件识别器_.exe" >nul 2>nul
+del /f /q "_origin_path_.txt" >nul 2>nul
+
+rem 进行用户定义的删除指定文件操作
+cd /d "%origin_path%\extracter"
+start "【删除指定文件中】" /min /wait "extracter.exe" 3 "!target_path!"
+
+
+cd /d "!target_path!"
+del /f /q "_rm_list_.txt" >nul 2>nul
+
+for %%j in ("*.【_保护_】") do (
+    set replace_name=%%j
+    set replace_name=!replace_name:.【_保护_】=!
+    set replace_name=!replace_name:【_保护_】=!
+    set replace_name=!replace_name:【_dot_】=.!
+    ren "%%j" "!replace_name!"
+)
+rem 所有文件夹都处理完后，结束。
+exit
+

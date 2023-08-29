@@ -1,0 +1,47 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title ｜子执行器｜
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set target_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+
+rem 把所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "*" /A > nul
+
+rem 由于已给everyone授予目标文件夹（1个）完全控制权限并向下继承“:(CI)(OI)(F)”，此时权限允许进入并列出文件，这里只要重置即可。
+rem 即使项目带有“系统”、“隐藏”属性，icacls也可以访问。
+icacls "*" /reset /C > nul
+
+rem 防止有隐藏或系统文件（夹）让批处理忽略
+attrib -S -H "*" /S /D > nul
+
+cd /d "!target_path!"
+rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+for /d %%j in ("*") do (
+    cd "%%j"
+    if %errorlevel% EQU 0 (
+        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+        rem 复制“_child_excuter_2.bat”自身
+        if not exist "%~nx0" (mklink /h "%~nx0" "..\%~nx0" > nul)
+        if not exist "%~nx0" (copy /y "..\%~nx0" ".\" > nul)
+            
+        rem 启动刚刚复制过来的“子”执行器
+        start "｜子执行器｜" /min /wait "%~nx0"
+
+        cd..
+    )
+)
+rem 所有文件夹都处理完后，结束。
+exit
+

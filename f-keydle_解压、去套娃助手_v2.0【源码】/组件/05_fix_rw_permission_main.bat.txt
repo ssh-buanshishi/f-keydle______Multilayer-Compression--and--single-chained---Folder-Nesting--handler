@@ -1,0 +1,86 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title 05-修复文件夹读写权限
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+
+echo 功能：尝试修复没有读写、删除权限或者对用户拒绝访问的文件夹和其中的内容，
+echo      获取到目标文件夹完全的访问权限。不一定百分百成功。
+echo.
+echo      “ 01-解多层压缩+解文件夹套娃.bat ” 和 “ 02-【仅】解文件夹套娃.bat ”
+echo      运行时会自动完成上述获取权限的操作，这个工具单独拿出来是为了用户
+echo      日常单独解决此类问题的，在非系统文件夹下碰到因为权限问题无法访问、删除
+echo      的文件夹和其中的文件时，可以尝试运行这个批处理工具。
+echo.
+echo      【注意！！不可用于系统文件夹！！】
+echo.
+echo.
+goto receive
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉可能存在的两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+if exist "!target_path!" (
+    cls
+    goto process
+) else (
+    echo 目标文件夹不存在，请重试
+    goto receive
+)
+
+:process
+echo 正在处理中，请耐心等待……
+
+rem 把目标文件夹所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "!target_path!" /A > nul
+
+rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
+icacls "!target_path!" /reset > nul
+
+rem 再把这些继承的权限删除，这个文件夹的权限就清空了
+icacls "!target_path!" /inheritance:r > nul
+
+rem 再给everyone授予目标文件夹完全控制权限并向下继承：“:(CI)(OI)(F)”，权限“标杆”就立好了，
+rem 在这个文件夹下的所有文件只需要reset，就能将访问权限替换为这个文件夹的访问权限，这样就不会存在任何访问限制。
+icacls "!target_path!" /grant "everyone":(OI)(CI)(F) > nul
+
+rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
+attrib -S -H "!target_path!" > nul
+
+cd /d "%origin_path%"
+rem 开始往这个文件夹中“塞”文件
+rem 可能是不同盘符，这种情况不能用硬链接。
+if not exist "!target_path!\_child_excuter_5.bat" (copy /y "05_fix_rw_permission_child.bat" "!target_path!\_child_excuter_5.bat">nul)
+
+
+cd /d "%target_path%"
+rem 启动刚刚复制过来的“子”执行器
+start "｜子执行器｜" /min /wait "_child_excuter_5.bat"
+
+rem 执行清理工作
+del /f /s /q "_child_excuter_5.bat" >nul 2>nul
+
+cls
+goto receive

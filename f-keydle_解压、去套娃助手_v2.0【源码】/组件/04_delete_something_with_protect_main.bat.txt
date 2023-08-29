@@ -1,0 +1,91 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title 04-删除指定文件【保护所有（可能隐藏的）压缩文件，使之不易被匹配删除】
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+echo 功能：删除指定文件的同时保护所有（伪装的，未（成功）解压出来的）压缩文件，使之不易被匹配删除。
+echo      此模式下，可以自由地在配置文件中设置下列模式匹配删除指定的（推广）文件，不用担心压缩文件会被删除：
+echo    “ 【文件名头部的匹配文字】* ”    ， “ 【文件名头部的匹配文字】*.* ”
+echo    “ *【文件名尾部的匹配文字】.* ”  ， “ *.【指定扩展名】 ” 。
+echo.
+echo      除非故意输入用来保护压缩文件的保护标记，或者直接匹配“ * ”或“ *.* ”，理论上不会匹配到
+echo      上述的压缩文件，因此对伪装的压缩文件有保护作用。
+echo.
+echo    注意！为了防止批处理自身在运行中被删除，此模式下删除不了“.bat”文件！
+echo    如果有这个删除“.bat”文件的需求的话（估计这个需求相当少见），请删除完所有其他需要匹配删除的文件，
+echo    且确定伪装成“.bat”的压缩文件（估计一般不会有伪装成这样的）被解压缩后，
+echo    转到“ 03-删除指定文件【不保护压缩文件】.bat ”进行
+echo.
+echo.
+goto receive
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或者关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉可能存在的两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+if exist "!target_path!" (
+    cls
+    goto process
+) else (
+    echo 目标文件夹不存在，请重试
+    goto receive
+)
+
+
+:process
+echo 正在处理中，请耐心等待……
+
+cd /d "!target_path!"
+rem 清除可能存在的残留
+del /f /s /q "_origin_path_.txt" >nul 2>nul
+del /f /s /q "_password_.txt" >nul 2>nul
+del /f /s /q "_rm_list_.txt" >nul 2>nul
+del /f /s /q "_folder_names_record_.txt" >nul 2>nul
+del /f /s /q "_压缩文件识别器_.exe"  >nul 2>nul
+del /f /s /q "_child_excuter_1.bat" >nul 2>nul
+del /f /s /q "_child_excuter_2.bat" >nul 2>nul
+del /f /s /q "_child_excuter_4.bat" >nul 2>nul
+del /f /s /q "_child_excuter_5.bat" >nul 2>nul
+
+rem 开始往这个文件夹中“塞”文件
+rem 可能是不同盘符，这种情况不能用硬链接。
+cd /d "%origin_path%\extracter"
+start "【转移删除列表中】" /min /wait "extracter.exe" 4 "!target_path!"
+
+cd /d "%origin_path%"
+echo "%origin_path%">"!target_path!\_origin_path_.txt"
+if not exist "!target_path!\_child_excuter_4.bat" (copy /y "04_delete_something_with_protect_child.bat" "!target_path!\_child_excuter_4.bat">nul)
+if not exist "!target_path!\_压缩文件识别器_.exe" (copy /y "_压缩文件识别器_.exe" "!target_path!\">nul)
+
+cd /d "%target_path%"
+
+rem 启动刚刚复制过来的“子”执行器
+start "｜子执行器｜" /min /wait "_child_excuter_4.bat"
+
+rem 执行清理工作，其余文件的删除在子执行器中
+del /f /s /q "_child_excuter_4.bat" >nul 2>nul
+
+
+cls
+goto receive
+

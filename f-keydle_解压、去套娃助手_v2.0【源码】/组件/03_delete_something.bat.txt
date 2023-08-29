@@ -1,0 +1,72 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title 03-删除指定文件【不对伪装的（可能是未成功解压的）压缩文件作额外保护】
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+echo 功能：根据配置文件中的匹配设置，直接按“del /f /s /q”递归删除目标目录和子目录下的所有匹配文件，
+echo     没有保护和限制，可能会删除（隐藏的，未（成功）解压出来的）压缩文件。
+echo.
+echo     例如你想删除所有（从压缩包里解压出的）txt文件“ *.txt ”，
+echo     不巧的是压缩文件也伪装成了“.txt”文件，此时伪装成“.txt”文件的压缩文件也会被删除，
+echo     为了避免这一点的发生，请转到“ 04-删除指定文件【保护压缩文件】.bat ”进行删除。
+echo.
+echo.
+goto receive
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或者关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉可能存在的两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+if exist "!target_path!" (
+    cls
+    goto process
+) else (
+    echo 目标文件夹不存在，请重试
+    goto receive
+)
+
+
+:process
+echo 正在处理中，请耐心等待……
+
+cd /d "%target_path%"
+rem 清除可能存在的残留
+del /f /s /q "_origin_path_.txt" >nul 2>nul
+del /f /s /q "_password_.txt" >nul 2>nul
+del /f /s /q "_rm_list_.txt" >nul 2>nul
+del /f /s /q "_folder_names_record_.txt" >nul 2>nul
+del /f /s /q "_压缩文件识别器_.exe"  >nul 2>nul
+del /f /s /q "_child_excuter_1.bat" >nul 2>nul
+del /f /s /q "_child_excuter_2.bat" >nul 2>nul
+del /f /s /q "_child_excuter_4.bat" >nul 2>nul
+del /f /s /q "_child_excuter_5.bat" >nul 2>nul
+
+
+
+rem 进行用户定义的删除指定文件操作
+cd /d "%origin_path%\extracter"
+start "【删除指定文件中】" /min /wait "extracter.exe" 2 "!target_path!"
+
+cls
+goto receive
+

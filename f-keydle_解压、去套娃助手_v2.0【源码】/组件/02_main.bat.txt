@@ -1,0 +1,85 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title 02-【仅】清除文件夹单链套娃
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+
+echo 功能：【仅有】解开文件夹套娃，不解压缩和删除指定文件。
+echo.
+echo      当一个文件夹中：（ 只有一个文件夹【or】只有一个文件且这个文件就是压缩文件 ）的时候，
+echo      批处理会将这个单一对象移动到上一级目录。因此，文件夹中仅有一个非压缩文件的时候，
+echo      这个文件不会被移动到上一级，这么设计是为了防止上一级文件夹出现太多文件造成分类的混乱。
+echo.
+echo.
+goto receive
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉可能存在的两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+if exist "!target_path!" (
+    cls
+    goto process
+) else (
+    echo 目标文件夹不存在，请重试
+    goto receive
+)
+
+:process
+echo 正在处理中，请耐心等待……
+
+rem 把目标文件夹所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "!target_path!" /A > nul
+
+rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
+icacls "!target_path!" /reset > nul
+
+rem 再把这些继承的权限删除，这个文件夹的权限就清空了
+icacls "!target_path!" /inheritance:r > nul
+
+rem 再给everyone授予目标文件夹完全控制权限并向下继承：“:(CI)(OI)(F)”，权限“标杆”就立好了，
+rem 在这个文件夹下的所有文件只需要reset，就能将访问权限替换为这个文件夹的访问权限，这样就不会存在任何访问限制。
+icacls "!target_path!" /grant "everyone":(OI)(CI)(F) > nul
+
+rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
+attrib -S -H "!target_path!" > nul
+
+cd /d "%origin_path%"
+rem 开始往这个文件夹中“塞”文件
+rem 可能是不同盘符，这种情况不能用硬链接。
+if not exist "!target_path!\_child_excuter_2.bat" (copy /y "02_child.bat" "!target_path!\_child_excuter_2.bat">nul)
+if not exist "!target_path!\_压缩文件识别器_.exe" (copy /y "_压缩文件识别器_.exe" "!target_path!\">nul)
+
+
+cd /d "%target_path%"
+rem 启动刚刚复制过来的“子”执行器
+start "｜子执行器｜" /min /wait "_child_excuter_2.bat"
+
+rem 执行清理工作
+del /f /s /q "_child_excuter_2.bat" >nul 2>nul
+del /f /s /q "_压缩文件识别器_.exe" >nul 2>nul
+
+
+cls
+goto receive

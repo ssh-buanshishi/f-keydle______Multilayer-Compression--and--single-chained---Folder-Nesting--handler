@@ -1,0 +1,6 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+cd "组件"
+start "【指定窗口标题】" "mshta" "vbscript:CreateObject("Shell.Application").ShellExecute("02_main.bat","","","runas",1)(window.close)"
+exit

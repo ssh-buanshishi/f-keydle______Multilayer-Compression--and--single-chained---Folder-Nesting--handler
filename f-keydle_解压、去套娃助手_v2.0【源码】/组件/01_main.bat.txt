@@ -1,0 +1,167 @@
+@echo off
+rem -----编码：ANSI-----
+setlocal enabledelayedexpansion
+title 01-解多层压缩_与_清除文件夹单链套娃
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 根据系统是64位还是32位准备兼容的bandizip。统一复制成“Bandizip.exe”然后在后面需要时启动，这对压缩失败检测工具根据进程名称锁定窗口有帮助。
+rem 下面两个MD5的值如果升级bandizip，也需要更改。【bandizip_x64_md5】对应“Bandizip.x64.exe”；【bandizip_x86_md5】对应“Bandizip.x86.exe”
+set bandizip_x64_md5=f3e915565df5a4ce17888d7c598cf93a
+set bandizip_x86_md5=dea38e4d44fe61b231b8e9e925403c63
+if exist "%windir%\SysWOW64" (
+    rem 检查是否存在bandizip
+    if exist "BandizipPro_portable\Bandizip.exe" (
+        rem 如果存在，检验是不是64位的。
+        certutil -hashfile "BandizipPro_portable\Bandizip.exe" md5 | find "!bandizip_x64_md5!" > nul
+        rem 如果不是，就需要覆盖；是的话当然什么也不用做
+        if !errorlevel! NEQ 0 (
+            rem 需要先删除，如果直接copy会访问失败。
+            del /f /q "BandizipPro_portable\Bandizip.exe"
+            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
+            if not exist "BandizipPro_portable\Bandizip.exe" (
+                copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
+            )
+        )
+    rem 不存在就复制一份
+    ) else (
+        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
+        if not exist "BandizipPro_portable\Bandizip.exe" (
+            copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
+        )
+    )
+) else (
+    rem 检查是否存在bandizip
+    if exist "BandizipPro_portable\Bandizip.exe" (
+        rem 如果存在，检验是不是32位的。
+        certutil -hashfile "BandizipPro_portable\Bandizip.exe" md5 | find "!bandizip_x86_md5!" > nul
+        rem 如果不是，就需要覆盖；是的话当然什么也不用做
+        if !errorlevel! NEQ 0 (
+            rem 需要先删除，如果直接copy会访问失败。
+            del /f /q "BandizipPro_portable\Bandizip.exe"
+            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
+            if not exist "BandizipPro_portable\Bandizip.exe" (
+                copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
+            )
+        )
+    rem 不存在就复制一份
+    ) else (
+        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
+        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
+        if not exist "BandizipPro_portable\Bandizip.exe" (
+            copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
+        )
+    )
+)
+
+
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+echo 功能：解开多层（扩展名伪装的）压缩包，同时解开文件夹套娃，最后按照配置文件删除指定的文件，
+echo       未被成功解压的（扩展名伪装）压缩包将被保护不被删除，保护机制与“04-删除指定文件【保护压缩文件】.bat”相似。
+echo.
+echo 小提示：由于判断文件夹套娃的机制比较简单，当多层压缩包的其中一层或多层出现分卷压缩包时，最后解压出来的文件夹
+echo       可能会多出一层或多层套娃，这种情况只要再运行一下“ 02-【仅】解文件夹套娃.bat ”即可。
+echo.
+echo       如果在压缩包解开前提前知道想要删除的文件有哪些，可以自由地在配置文件中设置下列模式
+echo       匹配删除解压出来的指定的（推广）文件:
+echo    “ 【文件名头部的匹配文字】* ”    ， “ 【文件名头部的匹配文字】*.* ”
+echo    “ *【文件名尾部的匹配文字】.* ”  ， “ *.【指定扩展名】 ” 。
+echo       一般建议先空着，等解压出来后再配置，然后用“ 04-删除指定文件【保护压缩文件】.bat ”进行删除。
+echo.
+echo.
+goto receive
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+rem 统一去掉两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+
+
+if exist "!target_path!" (
+    cls
+    goto process
+) else (
+    echo 目标文件夹不存在，请重试
+    goto receive
+)
+
+:process
+echo 正在处理中，请耐心等待……
+
+rem 把目标文件夹所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "!target_path!" /A > nul
+
+rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
+icacls "!target_path!" /reset > nul
+
+rem 再把这些继承的权限删除，这个文件夹的权限就清空了
+icacls "!target_path!" /inheritance:r > nul
+
+rem 再给everyone授予目标文件夹完全控制权限并向下继承：“:(CI)(OI)(F)”，权限“标杆”就立好了，
+rem 在这个文件夹下的所有文件只需要reset，就能将访问权限替换为这个文件夹的访问权限，这样就不会存在任何访问限制。
+icacls "!target_path!" /grant "everyone":(OI)(CI)(F) > nul
+
+rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
+attrib -S -H "!target_path!" > nul
+
+
+rem 开始往这个文件夹中“塞”文件
+rem 转移密码和删除列表
+cd /d "%origin_path%\extracter"
+start "【转移密码和删除列表中】" /min /wait "extracter.exe" 0 "!target_path!"
+
+cd /d "%origin_path%"
+if exist "密码读取失败.txt" (
+    del /f /q "密码读取失败.txt" > nul
+    goto error_1
+) else if exist "密码目的地写入失败.txt" (
+    del /f /q "密码目的地写入失败.txt" > nul
+    goto error_2
+)
+rem 可能是不同盘符，这种情况不能用硬链接。
+echo "%origin_path%">"!target_path!\_origin_path_.txt"
+if not exist "!target_path!\_压缩文件识别器_.exe" (copy /y "_压缩文件识别器_.exe" "!target_path!\">nul)
+if not exist "!target_path!\_child_excuter_1.bat" (copy /y "01_child.bat" "!target_path!\_child_excuter_1.bat">nul)
+
+
+
+cd /d "%target_path%"
+rem 启动刚刚复制过来的“子”执行器
+start "｜子执行器｜" /min /wait "_child_excuter_1.bat"
+
+rem 清理，其余文件的删除在子执行器中
+del /f /s /q "_child_excuter_1.bat" >nul 2>nul
+
+cls
+goto receive
+
+:error_1
+echo 读取配置文件发生错误，请检查“配置解压密码和配置删除指定文件.txt”中
+echo 的4条线，或者尝试重置配置，接下来按任意键退出。
+@pause>nul
+exit
+
+:error_2
+echo 转移密码文件发生错误，这种错误一般不可能发生，接下来按任意键退出。
+@pause>nul
+exit
