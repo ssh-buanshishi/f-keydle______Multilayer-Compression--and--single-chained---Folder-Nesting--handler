@@ -17,3 +17,7 @@
 
 演示和教程：
 https://wwkq.lanzoum.com/iieWG0r642bg
+（v1.x）
+
+https://wwkq.lanzouq.com/iZLwY179g44h
+（v2.x）
