@@ -63,7 +63,7 @@ start "【删除指定文件中】" /min /wait "extracter.exe" 3 "!target_path!"
 cd /d "!target_path!"
 del /f /q "_rm_list_.txt" >nul 2>nul
 
-for %%j in ("*.【_保护_】") do (
+for %%j in ("*【_保护_】") do (
     set replace_name=%%j
     set replace_name=!replace_name:.【_保护_】=!
     set replace_name=!replace_name:【_保护_】=!

@@ -277,7 +277,7 @@ cd /d "!target_path!"
 del /f /q "_rm_list_.txt" >nul 2>nul
 
 rem 到这里一轮处理已经完成并走出循环了，可以放心地将原来打上“解压失败”的文件改回来，方便下一次尝试。
-for %%j in ("*.【_解压失败_】") do (
+for %%j in ("*【_解压失败_】") do (
     set replace_name=%%j
     set replace_name=!replace_name:.【_解压失败_】=!
     set replace_name=!replace_name:【_解压失败_】=!
