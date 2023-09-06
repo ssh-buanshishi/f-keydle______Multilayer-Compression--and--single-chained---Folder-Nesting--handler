@@ -20,5 +20,5 @@
 https://wwkq.lanzoum.com/iieWG0r642bg
 （v1.x）
 
-https://wwkq.lanzouq.com/iZLwY179g44h
+https://wwkq.lanzouq.com/i3qny17gcibg
 （v2.x）
