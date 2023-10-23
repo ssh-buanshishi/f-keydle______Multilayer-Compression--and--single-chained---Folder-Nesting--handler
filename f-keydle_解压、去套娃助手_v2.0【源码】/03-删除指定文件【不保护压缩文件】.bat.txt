@@ -1,6 +1,17 @@
 @echo off
-rem -----编码：ANSI-----
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
 setlocal enabledelayedexpansion
-cd "组件"
-start "【指定窗口标题】" "mshta" "vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","","","runas",1)(window.close)"
+cd /d "%~dp0"
+cd /d "组件"
+
+set parm=%~1
+if defined parm (
+    set parm=!parm: =【_空格_】!
+    start "【指定窗口标题】" mshta "vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","!parm!","","runas",1)(window.close)"
+) else (
+    start "【指定窗口标题】" mshta "vbscript:CreateObject("Shell.Application").ShellExecute("03_delete_something.bat","","","runas",1)(window.close)"
+)
+
 exit

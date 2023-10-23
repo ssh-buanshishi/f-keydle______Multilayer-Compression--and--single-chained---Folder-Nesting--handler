@@ -1,0 +1,17 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+cd /d "组件"
+
+set parm=%~1
+if defined parm (
+    set parm=!parm: =【_空格_】!
+    start "【指定窗口标题】" mshta "vbscript:CreateObject("Shell.Application").ShellExecute("05_fix_rw_permission_main.bat","!parm!","","runas",1)(window.close)"
+) else (
+    start "【指定窗口标题】" mshta "vbscript:CreateObject("Shell.Application").ShellExecute("05_fix_rw_permission_main.bat","","","runas",1)(window.close)"
+)
+
+exit
