@@ -1,0 +1,7 @@
+源码要编译的话需要安装Qt库。
+“detector.exe”是我花钱请别人写的，
+据给我源代码的程序员说：编写“detector.exe”时使用的IDE是Qt Creator，Qt库版本是5.几都没有问题
+
+如果是QT小白的话，请看下面的链接：
+【图解QT安装（Windows平台）】
+http://c.biancheng.net/view/3858.html

@@ -1,0 +1,10 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+cd /d "组件"
+
+start "【指定窗口标题】" 配置解压密码和配置删除指定文件.txt
+exit

@@ -1,0 +1,291 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+title 01-解多层压缩_与_清除文件夹单链套娃
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
+rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹必须解除隐藏状态才能被批处理识别，因此如果是win10
+rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下
+ver | find "10." >nul
+if %errorlevel% EQU 0 (
+    set /a NT_10_up=1
+) else (
+    set /a NT_10_up=0
+)
+
+set _name_=0
+
+set _path_=0
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+rem 准备bandizip
+start "｜子执行器｜" /min /wait tool_vrf_bdz.bat
+
+rem 检查是否传过来了参数（传了参数：mode == 1，拖曳文件的方法；没传参数：mode == 0，手动设置目标的方法）
+set /a mode=0
+
+set input=%~1
+
+if defined input (
+    rem 由于“mshta vbs...”命令的限制，不能有空格，所以传过来时空格被替换，这里还原回来。
+    set target_path=!input:【_空格_】= !
+
+    set /a mode=1
+)
+
+if !mode! EQU 1 (goto check) else (goto display_info)
+
+
+
+:display_info
+echo 功能：解开多层（扩展名伪装的）压缩包，同时解开文件夹套娃，最后按照配置文件删除指定的文件，
+echo       未被成功解压的（扩展名伪装）压缩包将被保护不被删除，保护机制与“04-删除指定文件【保护压缩文件】.bat”相似。
+echo.
+echo 小提示：由于判断文件夹套娃的机制比较简单，当多层压缩包的其中一层或多层出现分卷压缩包时，最后解压出来的文件夹
+echo       可能会多出一层或多层套娃，这种情况只要再运行一下“ 02-【仅】解文件夹套娃.bat ”即可。
+echo.
+echo       如果在压缩包解开前提前知道想要删除的文件有哪些，可以自由地在配置文件中设置下列模式
+echo       匹配删除解压出来的指定的（推广）文件:
+echo    “ 【文件名头部的匹配文字】* ”    ， “ 【文件名头部的匹配文字】*.* ”
+echo    “ *【文件名尾部的匹配文字】.* ”  ， “ *.【指定扩展名】 ” 。
+echo       一般建议先空着，等解压出来后再配置，然后用“ 04-删除指定文件【保护压缩文件】.bat ”进行删除。
+echo.
+echo.
+goto receive
+
+
+
+:receive
+echo 请将需要处理的【文件】或【文件夹】拖入窗口（接收目标路径），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉两侧的双引号
+set target_path=!input:"=!
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+goto check
+
+
+:check
+cls
+echo 正在处理中，请耐心等待……
+
+rem 为了扫清权限障碍，下面再查看路径是否存在就稳一点
+cd /d "%origin_path%"
+start "｜子执行器｜" /min /wait tool_gp.bat 0 "%target_path%"
+
+if exist "%target_path%" (
+    rem 获取目标文件所在路径和文件名
+    set t_m_p="%target_path%"
+    call :get_info !t_m_p!
+
+    goto process
+
+) else (
+    rem 发送路径不存在的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 1
+    if !mode! EQU 1 (exit) else (goto receive)
+)
+
+
+
+:process
+rem 尝试cd操作目标路径，操作失败的就是文件
+cd /d "%target_path%" 2>nul
+if %errorlevel% EQU 0 (
+    cd ".."
+    rem 确认是文件夹，替换为能够向下继承的权限
+    cd /d "%origin_path%"
+    start "｜子执行器｜" /min /wait tool_gp.bat 1 "%target_path%"
+) else (
+    rem 【把文件“变成”文件夹】
+
+    rem 排除上一级为根目录
+    echo "!_path_!" | find "\" >nul
+    set /a ret=!errorlevel!
+    if !ret! EQU 0 (
+        rem 给目标文件所在路径授权
+        cd /d "%origin_path%"
+        start "｜子执行器｜" /min /wait tool_gp.bat 2 "!_path_!"
+    )
+
+    rem 进入目标文件所在路径
+    cd /d "!_path_!"
+
+    rem 新建文件夹用来放这个文件，先排除命名冲突
+    if exist "_【_target_folder_】_" (
+        attrib -S -H "_【_target_folder_】_" >nul 2>nul
+        ren "_【_target_folder_】_" "_【_target_folder_】_!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!"
+    )
+    rem 新建文件夹
+    md "_【_target_folder_】_"
+    rem 下面是在盘根目录下的情况，其他情况下新建的文件夹有完全的权限
+    if !ret! NEQ 0 (
+        cd /d "%origin_path%"
+        start "｜子执行器｜" /min /wait tool_gp.bat 2 "!_path_!\_【_target_folder_】_"
+    )
+
+    cd /d "!_path_!"
+    rem 把这个文件放入文件夹
+    move "%target_path%" "_【_target_folder_】_\" >nul
+    rem 把这个文件夹重命名和文件一样的名字（带扩展名）
+    ren "_【_target_folder_】_" "!_name_!"
+
+    rem 至此，文件target_path成功“变为”文件夹target_path
+)
+
+
+rem 开始往这个文件夹中“塞”文件
+rem 转移密码和删除列表
+cd /d "%origin_path%\extracter"
+start "【转移密码和删除列表中】" /min /wait extracter.exe 0 "%target_path%"
+
+cd /d "%origin_path%"
+if exist "密码读取失败.txt" (
+    del /f /q "密码读取失败.txt" >nul
+    cls
+    goto error_1
+) else if exist "密码目的地写入失败.txt" (
+    del /f /q "密码目的地写入失败.txt" >nul
+    cls
+    goto error_2
+)
+
+rem 可能是不同盘符，这种情况不能用硬链接。
+if not exist "%target_path%\_child_excuter_1.bat" (copy /y "01_child.bat" "%target_path%\_child_excuter_1.bat" >nul)
+
+
+
+cd /d "%target_path%"
+rem 启动刚刚复制过来的“子”执行器，传递“组件”文件夹路径
+start "｜子执行器｜" /min /wait _child_excuter_1.bat "%origin_path%" %NT_10_up%
+set /a ret=!errorlevel!
+
+cd /d "%target_path%"
+rem 清理，其余文件的删除在子执行器中
+del /f /s /q "_child_excuter_1.bat" >nul
+
+set /a num_a=0
+call :count_num_a
+set /a num_b=0
+call :count_num_b
+
+cd /d "%target_path%"
+rem 查看是否只有一个文件夹，如果是的话，移出这个文件夹里的所有内容并删除这个文件夹，这个套娃“xxx_child.bat”处理不了
+if !num_a! EQU 1 (if !num_b! EQU 0 (
+    for /d %%i in ("*") do (
+        set new_f_name_outside=%%i_!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!
+        ren "%%i" "!new_f_name_outside!"
+
+        cd /d "!new_f_name_outside!"
+        if !errorlevel! EQU 0 (
+            for /d %%j in ("*") do (
+                if exist "..\%%j" (
+                    set new_f_name_inside=%%j_【!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!】
+                    ren "%%j" "!new_f_name_inside!"
+                    move "!new_f_name_inside!" "..\" >nul
+                ) else (
+                    move "%%j" "..\" >nul
+                )
+            )
+
+            for %%j in ("*") do (
+                if exist "..\%%j" (
+                    set new_f_name_inside=%%~nj_【!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!】%%~xj
+                    ren "%%j" "!new_f_name_inside!"
+                    move "!new_f_name_inside!" "..\" >nul
+                ) else (
+                    move "%%j" "..\" >nul
+                )
+            )
+
+            cd ".."
+            rd /s /q "!new_f_name_outside!"
+        )
+    )
+))
+
+cls
+cd /d "%origin_path%"
+if !ret! EQU 0 (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+) else if !ret! EQU 2 (
+    rem 发送参数“origin_path”传递出错通知
+    start "title" _通知_.exe 4
+) else (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+)
+
+if !mode! EQU 1 (exit) else (goto receive)
+
+
+
+
+
+:error_1
+rem echo 读取密码配置发生错误，请检查“配置解压密码和配置
+rem echo 删除指定文件.txt”中的4条线，或者尝试重置配置。
+cd /d "%origin_path%"
+start "title" _通知_.exe 2
+exit
+
+:error_2
+rem echo 转移密码文件写入时发生错误，这种错误一般不可能发生。
+cd /d "%origin_path%"
+start "title" _通知_.exe 3
+exit
+
+
+
+
+
+:get_info
+set _name_=%~nx1
+
+set _path_=%~dp1
+
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!_path_:~-1!
+if "%t_m_p%"=="\" (set _path_=!_path_:~0,-1!)
+goto :EOF
+
+
+
+rem 由于只需要判断num_a和num_b各自是否为0或1，多余的循环会造成时间浪费，
+rem 但批处理中没有break语句，所以“call”和函数里for中的“goto :EOF”组成了break的功能，
+rem 让循环最多进行到“num_x == 2”就行了，如果只进行到“== 1”，无法判断数目是否超过1
+:count_num_a
+for /d %%k in ("*") do (
+    set /a num_a+=1
+    if !num_a! GTR 1 (goto :EOF)
+)
+goto :EOF
+
+
+
+:count_num_b
+for %%k in ("*") do (
+    set /a num_b+=1
+    if !num_b! GTR 1 (goto :EOF)
+)
+goto :EOF

@@ -1,0 +1,106 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+title 03-删除指定文件【不对伪装的（可能是未成功解压的）压缩文件作额外保护】
+
+rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
+rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
+rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
+cd /d "%~dp0"
+
+rem 存入当前路径
+set origin_path=%~dp0
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!origin_path:~-1!
+if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
+
+
+rem 检查是否传过来了参数（传了参数：mode == 1，拖曳文件的方法；没传参数：mode == 0，手动设置目标的方法）
+set /a mode=0
+
+set input=%~1
+
+if defined input (
+    rem 由于“mshta vbs...”命令的限制，不能有空格，所以传过来时空格被替换，这里还原回来。
+    set target_path=!input:【_空格_】= !
+
+    set /a mode=1
+)
+
+if !mode! EQU 1 (goto check) else (goto display_info)
+
+
+
+
+:display_info
+echo 功能：根据配置文件中的匹配设置，直接按“del /f /s /q”递归删除目标目录和子目录下的所有匹配文件，
+echo     没有保护和限制，可能会删除（隐藏的，未（成功）解压出来的）压缩文件。
+echo.
+echo     例如你想删除所有（从压缩包里解压出的）txt文件“ *.txt ”，
+echo     不巧的是压缩文件也伪装成了“.txt”文件，此时伪装成“.txt”文件的压缩文件也会被删除，
+echo     为了避免这一点的发生，请转到“ 04-删除指定文件【保护压缩文件】.bat ”进行删除。
+echo.
+echo.
+goto receive
+
+
+
+:receive
+echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 如果需要退出，确保看到此消息后直接按回车或者关闭窗口，不要拖入文件夹或输入任何内容。
+set input=<nul
+set /p input=
+if not defined input (exit)
+
+rem 统一去掉可能存在的两侧的双引号
+set target_path=%input:"=%
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!target_path:~-1!
+if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+goto check
+
+
+
+:check
+cls
+echo 正在处理中，请耐心等待……
+
+rem 这里可以省略权限操作
+
+if exist "!target_path!" (
+    goto process
+) else (
+    rem 发送路径不存在的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 1
+    if !mode! EQU 1 (exit) else (goto receive)
+)
+
+
+:process
+rem 尝试cd操作目标路径，操作失败的就是文件
+cd /d "%target_path%" 2>nul
+if !errorlevel! EQU 0 (
+    cd ".."
+    rem 这里可以省略权限操作
+
+) else (
+    rem 发出“需要接受文件夹，而不是文件”的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 5
+    if !mode! EQU 1 (exit) else (goto receive)
+)
+
+rem 进行用户定义的删除指定文件操作
+cd /d "%origin_path%\extracter"
+start "【删除指定文件中】" /min /wait extracter.exe 2 "!target_path!"
+
+cls
+rem 发送结束通知
+cd /d "%origin_path%"
+start "title" _通知_.exe 0
+if !mode! EQU 1 (exit) else (goto receive)

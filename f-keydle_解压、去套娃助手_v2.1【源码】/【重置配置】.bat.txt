@@ -1,0 +1,19 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+
+echo 即将重置配置，如果是不小心点进来的请关闭窗口。
+echo 如果确实需要重置的，按任意键继续。
+@pause>nul
+
+cd /d "组件"
+del /f /q "配置解压密码和配置删除指定文件.txt" >nul
+copy /y "配置解压密码和配置删除指定文件【备份文件，出问题可以重置，千万别重命名】.bkup" "配置解压密码和配置删除指定文件.txt" >nul
+attrib -R "配置解压密码和配置删除指定文件.txt" >nul
+cls
+echo 重置成功，按任意键退出。
+@pause>nul
+exit

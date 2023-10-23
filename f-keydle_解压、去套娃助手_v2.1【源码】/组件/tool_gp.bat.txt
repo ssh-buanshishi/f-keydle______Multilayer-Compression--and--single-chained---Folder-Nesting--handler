@@ -1,0 +1,79 @@
+@echo off
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
+setlocal enabledelayedexpansion
+title ｜子执行器｜
+cd /d "%~dp0"
+
+set target_path=%~2
+if not defined target_path exit
+set _mode_=%~1
+if not defined _mode_ exit
+
+
+
+if %_mode_% EQU 0 goto mode_0
+
+if %_mode_% EQU 1 goto mode_1
+
+if %_mode_% EQU 2 goto mode_2
+
+exit
+
+
+
+
+:mode_0
+rem 把目标文件/文件夹所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "%target_path%" /A
+
+rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
+icacls "%target_path%" /reset /C
+
+rem 再把这些继承的权限删除，这个文件/文件夹的权限就清空了
+icacls "%target_path%" /inheritance:r
+
+rem 再给everyone授予目标文件/文件夹完全控制权限：“:(F)”。
+icacls "%target_path%" /grant "everyone":(F)
+
+rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
+attrib -S -H "%target_path%"
+
+exit
+
+
+
+
+
+:mode_1
+rem 确认是文件夹，替换为能够向下继承的权限
+icacls "%target_path%" /reset /C
+icacls "%target_path%" /inheritance:r
+icacls "%target_path%" /grant "everyone":(OI)(CI)(F)
+exit
+
+
+
+
+
+
+:mode_2
+rem 把目标文件所在的文件夹所有者改为所有管理员，为下面的授权铺路
+rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
+takeown /f "%target_path%" /A
+
+rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
+icacls "%target_path%" /reset /C
+
+rem 再把这些继承的权限删除，这个目标文件所在的文件夹的权限就清空了
+icacls "%target_path%" /inheritance:r
+
+rem 再给everyone授予目标文件所在的文件夹完全控制权限：“:(OI)(CI)(F)”。
+icacls "%target_path%" /grant "everyone":(OI)(CI)(F)
+
+rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
+attrib -S -H "%target_path%"
+
+exit
