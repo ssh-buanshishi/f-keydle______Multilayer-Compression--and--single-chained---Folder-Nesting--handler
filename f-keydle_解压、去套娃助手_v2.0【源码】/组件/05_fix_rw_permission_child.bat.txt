@@ -1,5 +1,7 @@
 @echo off
-rem -----编码：ANSI-----
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
 setlocal enabledelayedexpansion
 title ｜子执行器｜
 
@@ -8,6 +10,9 @@ rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizi
 rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
 cd /d "%~dp0"
 
+set NT_10_up=%~1
+if not defined NT_10_up (set /a NT_10_up=1)
+
 rem 存入当前路径
 set target_path=%~dp0
 rem 路径末尾可能会自带“\”，下面去掉它。
@@ -15,33 +20,47 @@ set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
 
 
+
+
 rem 把所有者改为所有管理员，为下面的授权铺路
 rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
-takeown /f "*" /A > nul
+takeown /f "*" /A >nul
 
-rem 由于已给everyone授予目标文件夹（1个）完全控制权限并向下继承“:(CI)(OI)(F)”，此时权限允许进入并列出文件，这里只要重置即可。
+rem 由于已给everyone授予目标文件夹（1个）完全控制权限并向下继承“:(OI)(CI)(F)”，此时权限允许进入并列出文件，这里只要重置即可。
 rem 即使项目带有“系统”、“隐藏”属性，icacls也可以访问。
-icacls "*" /reset /C > nul
+icacls "*" /reset /C >nul
 
 rem 防止有隐藏或系统文件（夹）让批处理忽略
-attrib -S -H "*" /S /D > nul
+rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
+rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹和文件必须解除隐藏状态才能被批处理识别，因此如果是win10
+rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下。
+if %NT_10_up% EQU 1 (
+    attrib -S -H "*" /D >nul
+) else (
+    attrib -S -H "*" /S /D >nul
+)
 
-cd /d "!target_path!"
+
+
 rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+rem 这里不能排除空文件夹，因为可能由于权限和隐藏文件的问题（不像01-xxx.bat和02-xxx.bat因为有处理文件夹套娃的循环，能保证权限没问题，
+rem 也不像03-xxx.bat、04-xxx.bat一般跟在01、02之后不需要考虑权限和隐藏文件的问题），统计到的文件+文件夹的数目不真实。
+cd /d "!target_path!"
 for /d %%j in ("*") do (
-    cd "%%j"
+    cd /d "%%j"
     if %errorlevel% EQU 0 (
         rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-        rem 复制“_child_excuter_2.bat”自身
-        if not exist "%~nx0" (mklink /h "%~nx0" "..\%~nx0" > nul)
-        if not exist "%~nx0" (copy /y "..\%~nx0" ".\" > nul)
-            
-        rem 启动刚刚复制过来的“子”执行器
-        start "｜子执行器｜" /min /wait "%~nx0"
+        rem 复制“_child_excuter_5.bat”自身
+        if not exist "_child_excuter_5.bat" (mklink /h "_child_excuter_5.bat" "..\_child_excuter_5.bat" >nul)
+        if not exist "_child_excuter_5.bat" (copy /y "..\_child_excuter_5.bat" ".\" >nul)
 
-        cd..
+        rem 启动刚刚复制过来的“子”执行器
+        start "｜子执行器｜" /min /wait _child_excuter_5.bat %NT_10_up%
+
+        cd ".."
     )
 )
+
+
 rem 所有文件夹都处理完后，结束。
 exit
-

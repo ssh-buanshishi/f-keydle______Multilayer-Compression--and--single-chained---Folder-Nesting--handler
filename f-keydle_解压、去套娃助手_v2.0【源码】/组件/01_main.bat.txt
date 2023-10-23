@@ -1,5 +1,7 @@
 @echo off
-rem -----编码：ANSI-----
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
 setlocal enabledelayedexpansion
 title 01-解多层压缩_与_清除文件夹单链套娃
 
@@ -8,59 +10,19 @@ rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizi
 rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
 cd /d "%~dp0"
 
-rem 根据系统是64位还是32位准备兼容的bandizip。统一复制成“Bandizip.exe”然后在后面需要时启动，这对压缩失败检测工具根据进程名称锁定窗口有帮助。
-rem 下面两个MD5的值如果升级bandizip，也需要更改。【bandizip_x64_md5】对应“Bandizip.x64.exe”；【bandizip_x86_md5】对应“Bandizip.x86.exe”
-set bandizip_x64_md5=f3e915565df5a4ce17888d7c598cf93a
-set bandizip_x86_md5=dea38e4d44fe61b231b8e9e925403c63
-if exist "%windir%\SysWOW64" (
-    rem 检查是否存在bandizip
-    if exist "BandizipPro_portable\Bandizip.exe" (
-        rem 如果存在，检验是不是64位的。
-        certutil -hashfile "BandizipPro_portable\Bandizip.exe" md5 | find "!bandizip_x64_md5!" > nul
-        rem 如果不是，就需要覆盖；是的话当然什么也不用做
-        if !errorlevel! NEQ 0 (
-            rem 需要先删除，如果直接copy会访问失败。
-            del /f /q "BandizipPro_portable\Bandizip.exe"
-            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
-            if not exist "BandizipPro_portable\Bandizip.exe" (
-                copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
-            )
-        )
-    rem 不存在就复制一份
-    ) else (
-        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x64.exe" > nul
-        if not exist "BandizipPro_portable\Bandizip.exe" (
-            copy /y "BandizipPro_portable\Bandizip.x64.exe" "BandizipPro_portable\Bandizip.exe" > nul
-        )
-    )
+rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
+rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹必须解除隐藏状态才能被批处理识别，因此如果是win10
+rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下
+ver | find "10." >nul
+if %errorlevel% EQU 0 (
+    set /a NT_10_up=1
 ) else (
-    rem 检查是否存在bandizip
-    if exist "BandizipPro_portable\Bandizip.exe" (
-        rem 如果存在，检验是不是32位的。
-        certutil -hashfile "BandizipPro_portable\Bandizip.exe" md5 | find "!bandizip_x86_md5!" > nul
-        rem 如果不是，就需要覆盖；是的话当然什么也不用做
-        if !errorlevel! NEQ 0 (
-            rem 需要先删除，如果直接copy会访问失败。
-            del /f /q "BandizipPro_portable\Bandizip.exe"
-            rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-            mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
-            if not exist "BandizipPro_portable\Bandizip.exe" (
-                copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
-            )
-        )
-    rem 不存在就复制一份
-    ) else (
-        rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-        mklink /h "BandizipPro_portable\Bandizip.exe" "BandizipPro_portable\Bandizip.x86.exe" > nul
-        if not exist "BandizipPro_portable\Bandizip.exe" (
-            copy /y "BandizipPro_portable\Bandizip.x86.exe" "BandizipPro_portable\Bandizip.exe" > nul
-        )
-    )
+    set /a NT_10_up=0
 )
 
+set _name_=0
 
+set _path_=0
 
 rem 存入当前路径
 set origin_path=%~dp0
@@ -68,6 +30,26 @@ rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!origin_path:~-1!
 if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
 
+rem 准备bandizip
+start "｜子执行器｜" /min /wait tool_vrf_bdz.bat
+
+rem 检查是否传过来了参数（传了参数：mode == 1，拖曳文件的方法；没传参数：mode == 0，手动设置目标的方法）
+set /a mode=0
+
+set input=%~1
+
+if defined input (
+    rem 由于“mshta vbs...”命令的限制，不能有空格，所以传过来时空格被替换，这里还原回来。
+    set target_path=!input:【_空格_】= !
+
+    set /a mode=1
+)
+
+if !mode! EQU 1 (goto check) else (goto display_info)
+
+
+
+:display_info
 echo 功能：解开多层（扩展名伪装的）压缩包，同时解开文件夹套娃，最后按照配置文件删除指定的文件，
 echo       未被成功解压的（扩展名伪装）压缩包将被保护不被删除，保护机制与“04-删除指定文件【保护压缩文件】.bat”相似。
 echo.
@@ -83,85 +65,227 @@ echo.
 echo.
 goto receive
 
+
+
 :receive
-echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
+echo 请将需要处理的【文件】或【文件夹】拖入窗口（接收目标路径），之后按回车。
 echo 如果需要退出，确保看到此消息后直接按回车或关闭窗口，不要拖入文件夹或输入任何内容。
 set input=<nul
 set /p input=
 if not defined input (exit)
+
 rem 统一去掉两侧的双引号
-set target_path=%input:"=%
+set target_path=!input:"=!
 rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+goto check
 
 
-if exist "!target_path!" (
-    cls
-    goto process
-) else (
-    echo 目标文件夹不存在，请重试
-    goto receive
-)
-
-:process
+:check
+cls
 echo 正在处理中，请耐心等待……
 
-rem 把目标文件夹所有者改为所有管理员，为下面的授权铺路
-rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
-takeown /f "!target_path!" /A > nul
+rem 为了扫清权限障碍，下面再查看路径是否存在就稳一点
+cd /d "%origin_path%"
+start "｜子执行器｜" /min /wait tool_gp.bat 0 "%target_path%"
 
-rem 经过reset之后，得到的就全是继承的权限了，其余权限都被删除。
-icacls "!target_path!" /reset > nul
+if exist "%target_path%" (
+    rem 获取目标文件所在路径和文件名
+    set t_m_p="%target_path%"
+    call :get_info !t_m_p!
 
-rem 再把这些继承的权限删除，这个文件夹的权限就清空了
-icacls "!target_path!" /inheritance:r > nul
+    goto process
 
-rem 再给everyone授予目标文件夹完全控制权限并向下继承：“:(CI)(OI)(F)”，权限“标杆”就立好了，
-rem 在这个文件夹下的所有文件只需要reset，就能将访问权限替换为这个文件夹的访问权限，这样就不会存在任何访问限制。
-icacls "!target_path!" /grant "everyone":(OI)(CI)(F) > nul
+) else (
+    rem 发送路径不存在的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 1
+    if !mode! EQU 1 (exit) else (goto receive)
+)
 
-rem 以防万一，可能真的有人会开启显示“隐藏”和“系统”属性的文件，然后再手动输入或者拖进来。
-attrib -S -H "!target_path!" > nul
+
+
+:process
+rem 尝试cd操作目标路径，操作失败的就是文件
+cd /d "%target_path%" 2>nul
+if %errorlevel% EQU 0 (
+    cd ".."
+    rem 确认是文件夹，替换为能够向下继承的权限
+    cd /d "%origin_path%"
+    start "｜子执行器｜" /min /wait tool_gp.bat 1 "%target_path%"
+) else (
+    rem 【把文件“变成”文件夹】
+
+    rem 排除上一级为根目录
+    echo "!_path_!" | find "\" >nul
+    set /a ret=!errorlevel!
+    if !ret! EQU 0 (
+        rem 给目标文件所在路径授权
+        cd /d "%origin_path%"
+        start "｜子执行器｜" /min /wait tool_gp.bat 2 "!_path_!"
+    )
+
+    rem 进入目标文件所在路径
+    cd /d "!_path_!"
+
+    rem 新建文件夹用来放这个文件，先排除命名冲突
+    if exist "_【_target_folder_】_" (
+        attrib -S -H "_【_target_folder_】_" >nul 2>nul
+        ren "_【_target_folder_】_" "_【_target_folder_】_!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!"
+    )
+    rem 新建文件夹
+    md "_【_target_folder_】_"
+    rem 下面是在盘根目录下的情况，其他情况下新建的文件夹有完全的权限
+    if !ret! NEQ 0 (
+        cd /d "%origin_path%"
+        start "｜子执行器｜" /min /wait tool_gp.bat 2 "!_path_!\_【_target_folder_】_"
+    )
+
+    cd /d "!_path_!"
+    rem 把这个文件放入文件夹
+    move "%target_path%" "_【_target_folder_】_\" >nul
+    rem 把这个文件夹重命名和文件一样的名字（带扩展名）
+    ren "_【_target_folder_】_" "!_name_!"
+
+    rem 至此，文件target_path成功“变为”文件夹target_path
+)
 
 
 rem 开始往这个文件夹中“塞”文件
 rem 转移密码和删除列表
 cd /d "%origin_path%\extracter"
-start "【转移密码和删除列表中】" /min /wait "extracter.exe" 0 "!target_path!"
+start "【转移密码和删除列表中】" /min /wait extracter.exe 0 "%target_path%"
 
 cd /d "%origin_path%"
 if exist "密码读取失败.txt" (
-    del /f /q "密码读取失败.txt" > nul
+    del /f /q "密码读取失败.txt" >nul
+    cls
     goto error_1
 ) else if exist "密码目的地写入失败.txt" (
-    del /f /q "密码目的地写入失败.txt" > nul
+    del /f /q "密码目的地写入失败.txt" >nul
+    cls
     goto error_2
 )
+
 rem 可能是不同盘符，这种情况不能用硬链接。
-echo "%origin_path%">"!target_path!\_origin_path_.txt"
-if not exist "!target_path!\_压缩文件识别器_.exe" (copy /y "_压缩文件识别器_.exe" "!target_path!\">nul)
-if not exist "!target_path!\_child_excuter_1.bat" (copy /y "01_child.bat" "!target_path!\_child_excuter_1.bat">nul)
+if not exist "%target_path%\_child_excuter_1.bat" (copy /y "01_child.bat" "%target_path%\_child_excuter_1.bat" >nul)
 
 
 
 cd /d "%target_path%"
-rem 启动刚刚复制过来的“子”执行器
-start "｜子执行器｜" /min /wait "_child_excuter_1.bat"
+rem 启动刚刚复制过来的“子”执行器，传递“组件”文件夹路径
+start "｜子执行器｜" /min /wait _child_excuter_1.bat "%origin_path%" %NT_10_up%
+set /a ret=!errorlevel!
 
+cd /d "%target_path%"
 rem 清理，其余文件的删除在子执行器中
-del /f /s /q "_child_excuter_1.bat" >nul 2>nul
+del /f /s /q "_child_excuter_1.bat" >nul
+
+set /a num_a=0
+call :count_num_a
+set /a num_b=0
+call :count_num_b
+
+cd /d "%target_path%"
+rem 查看是否只有一个文件夹，如果是的话，移出这个文件夹里的所有内容并删除这个文件夹，这个套娃“xxx_child.bat”处理不了
+if !num_a! EQU 1 (if !num_b! EQU 0 (
+    for /d %%i in ("*") do (
+        set new_f_name_outside=%%i_!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!
+        ren "%%i" "!new_f_name_outside!"
+
+        cd /d "!new_f_name_outside!"
+        if !errorlevel! EQU 0 (
+            for /d %%j in ("*") do (
+                if exist "..\%%j" (
+                    set new_f_name_inside=%%j_【!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!】
+                    ren "%%j" "!new_f_name_inside!"
+                    move "!new_f_name_inside!" "..\" >nul
+                ) else (
+                    move "%%j" "..\" >nul
+                )
+            )
+
+            for %%j in ("*") do (
+                if exist "..\%%j" (
+                    set new_f_name_inside=%%~nj_【!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!】%%~xj
+                    ren "%%j" "!new_f_name_inside!"
+                    move "!new_f_name_inside!" "..\" >nul
+                ) else (
+                    move "%%j" "..\" >nul
+                )
+            )
+
+            cd ".."
+            rd /s /q "!new_f_name_outside!"
+        )
+    )
+))
 
 cls
-goto receive
+cd /d "%origin_path%"
+if !ret! EQU 0 (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+) else if !ret! EQU 2 (
+    rem 发送参数“origin_path”传递出错通知
+    start "title" _通知_.exe 4
+) else (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+)
+
+if !mode! EQU 1 (exit) else (goto receive)
+
+
+
+
 
 :error_1
-echo 读取配置文件发生错误，请检查“配置解压密码和配置删除指定文件.txt”中
-echo 的4条线，或者尝试重置配置，接下来按任意键退出。
-@pause>nul
+rem echo 读取密码配置发生错误，请检查“配置解压密码和配置
+rem echo 删除指定文件.txt”中的4条线，或者尝试重置配置。
+cd /d "%origin_path%"
+start "title" _通知_.exe 2
 exit
 
 :error_2
-echo 转移密码文件发生错误，这种错误一般不可能发生，接下来按任意键退出。
-@pause>nul
+rem echo 转移密码文件写入时发生错误，这种错误一般不可能发生。
+cd /d "%origin_path%"
+start "title" _通知_.exe 3
 exit
+
+
+
+
+
+:get_info
+set _name_=%~nx1
+
+set _path_=%~dp1
+
+rem 路径末尾可能会自带“\”，下面去掉它。
+set t_m_p=!_path_:~-1!
+if "%t_m_p%"=="\" (set _path_=!_path_:~0,-1!)
+goto :EOF
+
+
+
+rem 由于只需要判断num_a和num_b各自是否为0或1，多余的循环会造成时间浪费，
+rem 但批处理中没有break语句，所以“call”和函数里for中的“goto :EOF”组成了break的功能，
+rem 让循环最多进行到“num_x == 2”就行了，如果只进行到“== 1”，无法判断数目是否超过1
+:count_num_a
+for /d %%k in ("*") do (
+    set /a num_a+=1
+    if !num_a! GTR 1 (goto :EOF)
+)
+goto :EOF
+
+
+
+:count_num_b
+for %%k in ("*") do (
+    set /a num_b+=1
+    if !num_b! GTR 1 (goto :EOF)
+)
+goto :EOF

@@ -1,5 +1,7 @@
 @echo off
-rem -----编码：ANSI-----
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
 setlocal enabledelayedexpansion
 title 04-删除指定文件【保护所有（可能隐藏的）压缩文件，使之不易被匹配删除】
 
@@ -14,6 +16,22 @@ rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!origin_path:~-1!
 if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
 
+rem 检查是否传过来了参数（传了参数：mode == 1，拖曳文件的方法；没传参数：mode == 0，手动设置目标的方法）
+set /a mode=0
+
+set input=%~1
+
+if defined input (
+    rem 由于“mshta vbs...”命令的限制，不能有空格，所以传过来时空格被替换，这里还原回来。
+    set target_path=!input:【_空格_】= !
+
+    set /a mode=1
+)
+
+if !mode! EQU 1 (goto check) else (goto display_info)
+
+
+:display_info
 echo 功能：删除指定文件的同时保护所有（伪装的，未（成功）解压出来的）压缩文件，使之不易被匹配删除。
 echo      此模式下，可以自由地在配置文件中设置下列模式匹配删除指定的（推广）文件，不用担心压缩文件会被删除：
 echo    “ 【文件名头部的匹配文字】* ”    ， “ 【文件名头部的匹配文字】*.* ”
@@ -22,13 +40,11 @@ echo.
 echo      除非故意输入用来保护压缩文件的保护标记，或者直接匹配“ * ”或“ *.* ”，理论上不会匹配到
 echo      上述的压缩文件，因此对伪装的压缩文件有保护作用。
 echo.
-echo    注意！为了防止批处理自身在运行中被删除，此模式下删除不了“.bat”文件！
-echo    如果有这个删除“.bat”文件的需求的话（估计这个需求相当少见），请删除完所有其他需要匹配删除的文件，
-echo    且确定伪装成“.bat”的压缩文件（估计一般不会有伪装成这样的）被解压缩后，
-echo    转到“ 03-删除指定文件【不保护压缩文件】.bat ”进行
 echo.
 echo.
 goto receive
+
+
 
 :receive
 echo 请将需要处理的文件夹拖入窗口（接收文件夹的地址），之后按回车。
@@ -42,50 +58,104 @@ set target_path=%input:"=%
 rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
+goto check
+
+
+
+:check
+cls
+echo 正在处理中，请耐心等待……
+
+rem 这里可以省略权限操作
 
 if exist "!target_path!" (
-    cls
     goto process
 ) else (
-    echo 目标文件夹不存在，请重试
-    goto receive
+    rem 发送路径不存在的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 1
+    if !mode! EQU 1 (exit) else (goto receive)
 )
 
 
 :process
-echo 正在处理中，请耐心等待……
+rem 尝试cd操作目标路径，操作失败的就是文件
+cd /d "%target_path%" 2>nul
+if !errorlevel! EQU 0 (
+    rem 这里可以省略权限操作
+    cd ".."
+) else (
+    rem 发出“需要接受文件夹，而不是文件”的提醒
+    cls
+    cd /d "%origin_path%"
+    start "title" _通知_.exe 5
+    if !mode! EQU 1 (exit) else (goto receive)
+)
 
-cd /d "!target_path!"
-rem 清除可能存在的残留
-del /f /s /q "_origin_path_.txt" >nul 2>nul
-del /f /s /q "_password_.txt" >nul 2>nul
-del /f /s /q "_rm_list_.txt" >nul 2>nul
-del /f /s /q "_folder_names_record_.txt" >nul 2>nul
-del /f /s /q "_压缩文件识别器_.exe"  >nul 2>nul
-del /f /s /q "_child_excuter_1.bat" >nul 2>nul
-del /f /s /q "_child_excuter_2.bat" >nul 2>nul
-del /f /s /q "_child_excuter_4.bat" >nul 2>nul
-del /f /s /q "_child_excuter_5.bat" >nul 2>nul
 
-rem 开始往这个文件夹中“塞”文件
-rem 可能是不同盘符，这种情况不能用硬链接。
 cd /d "%origin_path%\extracter"
-start "【转移删除列表中】" /min /wait "extracter.exe" 4 "!target_path!"
+rem 转移删除列表
+start "【转移删除列表中】" /min /wait extracter.exe 4 "!target_path!"
 
 cd /d "%origin_path%"
-echo "%origin_path%">"!target_path!\_origin_path_.txt"
-if not exist "!target_path!\_child_excuter_4.bat" (copy /y "04_delete_something_with_protect_child.bat" "!target_path!\_child_excuter_4.bat">nul)
-if not exist "!target_path!\_压缩文件识别器_.exe" (copy /y "_压缩文件识别器_.exe" "!target_path!\">nul)
+if exist "删除列表读取失败.txt" (
+    del /f /q "删除列表读取失败.txt" >nul
+    goto error_1
+) else if exist "删除列表写入失败.txt" (
+    del /f /q "删除列表写入失败.txt" >nul
+    goto error_2
+)
 
-cd /d "%target_path%"
 
-rem 启动刚刚复制过来的“子”执行器
-start "｜子执行器｜" /min /wait "_child_excuter_4.bat"
+set /a ret=0
+if exist "%target_path%\_rm_list_.txt" (
 
-rem 执行清理工作，其余文件的删除在子执行器中
-del /f /s /q "_child_excuter_4.bat" >nul 2>nul
+    cd /d "%origin_path%"
+    rem 开始往这个文件夹中“塞”文件
+    rem 可能是不同盘符，这种情况不能用硬链接。
+    if not exist "%target_path%\_child_excuter_4.bat" (copy /y "04_delete_something_with_protect_child.bat" "%target_path%\_child_excuter_4.bat" >nul)
 
+
+    cd /d "%target_path%"
+    rem 启动刚刚复制过来的“子”执行器
+    start "｜子执行器｜" /min /wait _child_excuter_4.bat "%origin_path%"
+    set /a ret=!errorlevel!
+
+    cd /d "%target_path%"
+    rem 执行清理工作，其余文件的删除在子执行器中
+    del /f /s /q "_child_excuter_4.bat" >nul
+
+)
 
 cls
-goto receive
+cd /d "%origin_path%"
+if !ret! EQU 0 (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+) else if !ret! EQU 2 (
+    rem 发送参数“origin_path”传递出错通知
+    start "title" _通知_.exe 4
+) else (
+    rem 发送结束通知
+    start "title" _通知_.exe 0
+)
 
+if !mode! EQU 1 (exit) else (goto receive)
+
+
+
+
+
+:error_1
+rem echo 读取待删除文件配置时发生错误，请检查“配置解压密码和配置
+rem echo 删除指定文件.txt”中的4条线，或者尝试重置配置。
+cd /d "%origin_path%"
+start "title" _通知_.exe 6
+exit
+
+:error_2
+rem echo 转移待删除文件列表写入时发生错误，这种错误一般不可能发生。
+cd /d "%origin_path%"
+start "title" _通知_.exe 7
+exit

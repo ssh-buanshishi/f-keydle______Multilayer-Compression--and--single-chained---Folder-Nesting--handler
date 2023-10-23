@@ -3,29 +3,18 @@ rem -------------------- encoding:GB 2312(ANSI) ---------------------
 rem It is recommended to use "Visual Studio Code" to edit this file.
 
 setlocal enabledelayedexpansion
-title 02-【仅】清除文件夹单链套娃
+title 【【清除程序残留文件和恢复被标记文件】】
 
 rem 下面这行看似无意义的命令不是闲着没事写的，是为了防止系统找不到“北”，win10没有这行可能不会有任何问题，
 rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizip文件在哪，我一开始也
 rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
 cd /d "%~dp0"
 
-rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
-rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹必须解除隐藏状态才能被批处理识别，因此如果是win10
-rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下。
-ver | find "10." >nul
-if %errorlevel% EQU 0 (
-    set /a NT_10_up=1
-) else (
-    set /a NT_10_up=0
-)
-
 rem 存入当前路径
 set origin_path=%~dp0
 rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!origin_path:~-1!
 if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
-
 
 rem 检查是否传过来了参数（传了参数：mode == 1，拖曳文件的方法；没传参数：mode == 0，手动设置目标的方法）
 set /a mode=0
@@ -42,17 +31,15 @@ if defined input (
 if !mode! EQU 1 (goto check) else (goto display_info)
 
 
-
 :display_info
-echo 功能：【仅有】解开文件夹套娃，不解压缩和删除指定文件。
+echo 功能：解压或进行其他操作时，有时程序会因为各种情况意外退出，
+echo      此时目录中就可能会残留有打上标记的文件（“xxx【_解压失败_】”），
+echo      或者残留有程序自身的文件（“_child_excuter_xxx”、“_password_.txt”），
 echo.
-echo      当一个文件夹中：（ 只有一个文件夹【or】只有一个文件且这个文件就是压缩文件 ）的时候，
-echo      批处理会将这个单一对象移动到上一级目录。因此，文件夹中仅有一个非压缩文件的时候，
-echo      这个文件不会被移动到上一级，这么设计是为了防止上一级文件夹出现太多文件造成分类的混乱。
+echo      【这个程序就是用来清除文件夹下的程序残留文件和恢复被标记文件的。】
 echo.
 echo.
 goto receive
-
 
 
 :receive
@@ -67,18 +54,16 @@ set target_path=%input:"=%
 rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
-goto check
+
 
 
 :check
 cls
 echo 正在处理中，请耐心等待……
 
-rem 为了扫清权限障碍，下面再查看路径是否存在就稳一点
-cd /d "%origin_path%"
-start "｜子执行器｜" /min /wait tool_gp.bat 0 "%target_path%"
+rem 由于文件夹已经被处理过了，所以忽略权限操作
 
-if exist "!target_path!" (
+if exist "%target_path%" (
     goto process
 ) else (
     rem 发送路径不存在的提醒
@@ -88,18 +73,13 @@ if exist "!target_path!" (
     if !mode! EQU 1 (exit) else (goto receive)
 )
 
-
-
-
-
 :process
 rem 尝试cd操作目标路径，操作失败的就是文件
-cd /d "%target_path%"
-if %errorlevel% EQU 0 (
+cd /d "%target_path%" 2>nul
+if !errorlevel! EQU 0 (
     cd ".."
-    rem 确认是文件夹，替换为能够向下继承的权限
-    cd /d "%origin_path%"
-    start "｜子执行器｜" /min /wait tool_gp.bat 1 "%target_path%"
+    rem 这里可以省略权限操作
+
 ) else (
     rem 发出“需要接受文件夹，而不是文件”的提醒
     cls
@@ -108,23 +88,20 @@ if %errorlevel% EQU 0 (
     if !mode! EQU 1 (exit) else (goto receive)
 )
 
-
 cd /d "%origin_path%"
 rem 开始往这个文件夹中“塞”文件
 rem 可能是不同盘符，这种情况不能用硬链接。
-if not exist "!target_path!\_child_excuter_2.bat" (copy /y "02_child.bat" "!target_path!\_child_excuter_2.bat" >nul)
-
+if not exist "%target_path%\_child_excuter_recover_0.bat" (copy /y "00_recover_child.bat" "%target_path%\_child_excuter_recover_0.bat" >nul)
 
 
 cd /d "%target_path%"
 rem 启动刚刚复制过来的“子”执行器
-start "｜子执行器｜" /min /wait _child_excuter_2.bat "%origin_path%" %NT_10_up%
+start "｜子执行器｜" /min /wait _child_excuter_recover_0.bat "%origin_path%"
 set /a ret=!errorlevel!
 
 cd /d "%target_path%"
 rem 执行清理工作
-del /f /s /q "_child_excuter_2.bat" >nul
-
+del /f /s /q "_child_excuter_recover_0.bat" >nul
 
 cls
 cd /d "%origin_path%"

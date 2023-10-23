@@ -16,13 +16,12 @@ rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
 
+
 rem 从传递过来的参数中读取【组件】文件夹的绝对路径
 set origin_path=%~1
 if not defined origin_path (
-    if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
     exit 2
 )
-
 
 rem 统一去掉两侧的双引号
 set origin_path=!origin_path:"=!
@@ -30,35 +29,25 @@ rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!origin_path:~-1!
 if "%t_m_p%"=="\" (set origin_path=!origin_path:~0,-1!)
 
-
-
-rem 给压缩文件打上标记
 cd /d "%origin_path%\extracter"
-start "【标记压缩文件中】" /min /wait extracter.exe 5 "%target_path%"
+rem 解除标记
+start "【解除标记中】" /min /wait extracter.exe 6 "%target_path%"
+
+cd /d "%target_path%"
+if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
+if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
+if exist "_folder_names_record_.txt" (del /f /q "_folder_names_record_.txt" >nul)
+if exist "_child_excuter_1.bat" (del /f /q "_child_excuter_1.bat" >nul)
+if exist "_child_excuter_2.bat" (del /f /q "_child_excuter_2.bat" >nul)
+if exist "_child_excuter_4.bat" (del /f /q "_child_excuter_4.bat" >nul)
+if exist "_child_excuter_5.bat" (del /f /q "_child_excuter_5.bat" >nul)
+if exist "_压缩文件识别器_.exe" (del /f /q "_压缩文件识别器_.exe" >nul)
+if exist "_origin_path_.txt" (del /f /q "_origin_path_.txt" >nul)
+
 
 set /a no_origin_path=0
 rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
 call :down_spread
-
-rem 进行用户定义的删除指定文件操作
-cd /d "%origin_path%\extracter"
-start "【删除指定文件中】" /min /wait extracter.exe 3 "%target_path%"
-
-cd /d "%target_path%"
-if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
-
-cd /d "%target_path%"
-for %%j in ("*【_过滤标记_】") do (
-    set replace_name=%%j
-
-    set replace_name=!replace_name:.【_过滤标记_】=!
-
-    set replace_name=!replace_name:【_过滤标记_】=!
-
-    set replace_name=!replace_name:【_dot_】=.!
-
-    ren "%%j" "!replace_name!"
-)
 
 rem 所有文件夹都处理完后，结束。
 if !no_origin_path! EQU 0 (
@@ -68,13 +57,12 @@ if !no_origin_path! EQU 0 (
 )
 
 
-
 :down_spread
 cd /d "%target_path%"
-rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+rem 将bat和必要的文件复制继承到下一级文件夹中，挨个启动每个文件夹中的bat，继续下一代的尝试处理。
 for /d %%j in ("*") do (
     cd /d "%%j"
-    if !errorlevel! EQU 0 (
+    if %errorlevel% EQU 0 (
         rem 统计每个文件夹里的项目总数（此时文件访问权限是没问题的）
         set /a sum=0
         call :count_sum
@@ -82,18 +70,12 @@ for /d %%j in ("*") do (
         rem 如果不是空文件夹，就执行操作
         if !sum! GTR 0 (
             rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-            rem 复制“_child_excuter_4.bat”自身
-            if not exist "_child_excuter_4.bat" (mklink /h "_child_excuter_4.bat" "..\_child_excuter_4.bat" >nul)
-            if not exist "_child_excuter_4.bat" (copy /y "..\_child_excuter_4.bat" ".\" >nul)
-
-
-            rem 如果存在旧列表，需要覆盖。先删除后拷贝，直接拷贝会拒绝访问。
-            if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
-            mklink /h "_rm_list_.txt" "..\_rm_list_.txt" >nul
-            if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" >nul)
+            rem 复制“_child_excuter_5.bat”自身
+            if not exist "_child_excuter_recover_0.bat" (mklink /h "_child_excuter_recover_0.bat" "..\_child_excuter_recover_0.bat" >nul)
+            if not exist "_child_excuter_recover_0.bat" (copy /y "..\_child_excuter_recover_0.bat" ".\" >nul)
 
             rem 启动刚刚复制过来的“子”执行器
-            start "【指定的标题】" /min /wait _child_excuter_4.bat "%origin_path%"
+            start "｜子执行器｜" /min /wait _child_excuter_recover_0.bat "%origin_path%"
             if !errorlevel! EQU 2 (
                 cd ".."
                 set /a no_origin_path=1
@@ -107,8 +89,9 @@ for /d %%j in ("*") do (
 goto :EOF
 
 
+
 rem sum大于0即可，更大的数循环会浪费时间，
-rem 但批处理中没有break语句，所以“call”和函数中的“goto :EOF”组成了break的功能
+rem 但批处理中没有break语句，所以“call”和函数里for中的“goto :EOF”组成了break的功能
 :count_sum
 for /d %%k in ("*") do (
     set /a sum+=1

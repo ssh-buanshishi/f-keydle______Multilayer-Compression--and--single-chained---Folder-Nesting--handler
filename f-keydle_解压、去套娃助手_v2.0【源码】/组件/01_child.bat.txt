@@ -1,5 +1,7 @@
 @echo off
-rem -----编码：ANSI-----
+rem -------------------- encoding:GB 2312(ANSI) ---------------------
+rem It is recommended to use "Visual Studio Code" to edit this file.
+
 setlocal enabledelayedexpansion
 title ｜子执行器｜
 
@@ -8,15 +10,22 @@ rem 但是一位朋友的win11因为没了这行，配置bandizip版本时找不到当前目录下的bandizi
 rem 摸不着头脑为什么会找不到bandizip，后来加了这条命令后问题就自己消失了，不得不说这也太玄幻了。
 cd /d "%~dp0"
 
+set NT_10_up=%~2
+if not defined NT_10_up (set /a NT_10_up=1)
+
 rem 存入当前路径
 set target_path=%~dp0
 rem 路径末尾可能会自带“\”，下面去掉它。
 set t_m_p=!target_path:~-1!
 if "%t_m_p%"=="\" (set target_path=!target_path:~0,-1!)
 
-
-rem 读取【组件】文件夹的绝对路径
-for /f "delims=" %%t in (_origin_path_.txt) do (set origin_path=%%t)
+rem 从传递过来的参数中读取【组件】文件夹的绝对路径
+set origin_path=%~1
+if not defined origin_path (
+    if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
+    if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
+    exit 2
+)
 
 
 rem 统一去掉两侧的双引号
@@ -36,79 +45,105 @@ goto folder_process
 
 rem 一、【处理当前目录下所有的文件夹】
 :folder_process
-cd /d "!target_path!"
+cd /d "%target_path%"
 rem 把所有者改为所有管理员，为下面的授权铺路
 rem 即使里面的项目带有“系统”、“隐藏”属性，且对everyone拒绝一切访问，经过实验，takeown也能起效。
-takeown /f "*" /A > nul
+takeown /f "*" /A >nul
 
 rem 由于已给everyone授予目标文件夹（1个）完全控制权限并向下继承“:(CI)(OI)(F)”，此时权限允许进入并列出文件，这里只要重置即可。
 rem 即使项目带有“系统”、“隐藏”属性，icacls也可以访问。
-icacls "*" /reset /C > nul
+icacls "*" /reset /C >nul
 
 rem 防止有隐藏或系统文件（夹）让批处理忽略
-attrib -S -H "*" /S /D > nul
+rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
+rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹和文件必须解除隐藏状态才能被批处理识别，因此如果是win10
+rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下。
+if %NT_10_up% EQU 1 (
+    attrib -S -H "*" /D >nul
+) else (
+    attrib -S -H "*" /S /D >nul
+)
 
-rem 统计每次处理文件夹的操作次数，到最后操作数会变成0。
+rem 统计每次处理文件夹的操作次数，到最后操作次数会变成0。
 set /a operate_times=0
 rem 处理之前的视角下的第1级目录，之前母程序已经取得了完全的访问权限。
 for /d %%j in ("*") do (
-    
+
     rem 进入（处理之前的视角下的第2级目录）。
     rem 由于（处理之前的视角下的第1级目录）已给everyone授予完全控制权限并向下继承，此时权限允许进入并列出文件。
-    
-    cd "%%j"
+
+    cd /d "%%j"
     if !errorlevel! EQU 0 (
         rem 把所有者改为所有管理员，为下面的授权铺路
-        takeown /f "*" /A > nul
+        takeown /f "*" /A >nul
 
         rem 由于（处理之前的视角下的第1级目录）已给everyone授予完全控制权限并向下继承，这里只要重置即可。
-        icacls "*" /reset /C > nul
+        icacls "*" /reset /C >nul
 
         rem 防止有隐藏或系统文件（夹）让批处理忽略
-        attrib -S -H "*" /S /D > nul
+        rem win10的attrib支持仅有“/D”，而win7的attrib若要处理文件夹，“/S”和“/D”要组合着一起使用
+        rem "/S"是递归，处理量比仅有“/D”大很多，而文件夹必须解除隐藏状态才能被批处理识别，因此如果是win10
+        rem 及以上的话（win11的NT版本据说也是“10.”开头的），有必要加速一下。
+        if !NT_10_up! EQU 1 (
+            attrib -S -H "*" /D >nul
+        ) else (
+            attrib -S -H "*" /S /D >nul
+        )
+
+
+
+        set /a pass_card=0
 
         rem 统计每个【子】文件夹中，文件夹的个数。
         set /a num_a=0
-        for /d %%k in ("*") do (set /a num_a+=1)
-    
-        rem 统计每个【子】文件夹中，文件的个数。
-        set /a num_b=0
-        for %%k in ("*") do (set /a num_b+=1)
+        call :count_num_a
 
-        rem 复制检测工具
-        if not exist "_压缩文件识别器_.exe" (mklink /h "_压缩文件识别器_.exe" "..\_压缩文件识别器_.exe" > nul)
-        if not exist "_压缩文件识别器_.exe" (copy /y "..\_压缩文件识别器_.exe" ".\" > nul)
-        rem 统计每个【子】文件夹中，压缩文件的个数。
-        set /a num_c=0
-        set /a ret=0
-        for %%k in ("*") do (
-            if "%%k" NEQ "_压缩文件识别器_.exe" (
-                "_压缩文件识别器_.exe" "%%k"
-                set /a ret=!errorlevel!
-                if !ret! EQU 0 (
-                    set /a num_c+=1
-                ) else if !ret! EQU 1 (
-                    ren "%%k" "_t_a_r_g_e_t_.bin"
-                    "_压缩文件识别器_.exe" "_t_a_r_g_e_t_.bin"
+        if !num_a! EQU 1 (
+
+            rem 统计每个【子】文件夹中，文件的个数。
+            set /a num_b=0
+            call :count_num_b
+
+            rem 有一个文件夹，没有文件（当然也没有压缩文件）
+            if !num_b! EQU 0 (set /a pass_card=1)
+
+        ) else if !num_a! EQU 0 (
+
+            rem 统计每个【子】文件夹中，文件的个数。
+            set /a num_b=0
+            call :count_num_b
+
+            rem 没有文件夹，有一个文件，检测这个文件是否为压缩文件
+            if !num_b! EQU 1 (
+
+                set /a num_c=0
+
+                set /a ret=0
+
+                for %%k in ("*") do (
+                    "!origin_path!\_压缩文件识别器_.exe" "%%k"
                     set /a ret=!errorlevel!
-                    ren "_t_a_r_g_e_t_.bin" "%%k"
-                    if !ret! EQU 0 (set /a num_c+=1)
+                    if !ret! EQU 0 (
+                        set /a num_c+=1
+                    ) else if !ret! EQU 1 (
+                        ren "%%k" "_t_a_r_g_e_t_.bin"
+                        "!origin_path!\_压缩文件识别器_.exe" "_t_a_r_g_e_t_.bin"
+                        set /a ret=!errorlevel!
+                        ren "_t_a_r_g_e_t_.bin" "%%k"
+                        if !ret! EQU 0 (set /a num_c+=1)
+                    )
                 )
+
+                rem 这个文件就是压缩文件（文件个数=压缩文件个数=1）
+                if !num_c! EQU 1 (set /a pass_card=1)
+
             )
+
         )
-        rem 删除检测工具防止干扰
-        del /f /q "_压缩文件识别器_.exe" > nul
-        
-        cd..
 
-        set /a pass_card=0
-        rem 有一个文件夹，没有文件（当然也没有压缩文件）
-        if !num_a! EQU 1 (if !num_b! EQU 0 (set /a pass_card=1))
-        rem 没有文件夹，有一个文件，且这个文件就是压缩文件（文件个数等于压缩文件个数）
-        if !num_a! EQU 0 (if !num_b! EQU 1 (if !num_b! EQU !num_c! (set /a pass_card=1)))
-    
+        cd ".."
 
-        rem 判断是否只有一个文件夹或只有一个压缩文件，如是，移动到上一级，同时操作数加一。
+        rem 判断是否只有一个文件夹或只有一个压缩文件，如是，移动到上一级，同时操作次数加一。
         rem 空文件夹、含有多个项目的文件夹和含有单个非压缩文件的文件夹不处理
         if !pass_card! EQU 1 (
 
@@ -118,42 +153,42 @@ for /d %%j in ("*") do (
             set new_f_name_outside=%%j_!time:~0,2!_!time:~3,2!_!time:~6,5!_!random!_!random!_!random!
             ren "%%j" "!new_f_name_outside!"
 
-            cd "!new_f_name_outside!"
+            cd /d "!new_f_name_outside!"
             if !errorlevel! EQU 0 (
                 rem 【或】移出单个文件夹
                 for /d %%i in ("*") do (
-        
+
                     rem 移出前预测：如有冲突，名称里加上当前时间和3个随机数
                     if exist "..\%%i" (
 
                         set new_f_name_inside=%%i_【!time:~0,2!-!time:~3,2!-!time:~6,5!_!random!_!random!_!random!】
                         ren "%%i" "!new_f_name_inside!"
-                        move /y "!new_f_name_inside!" "..\" > nul
+                        move /y "!new_f_name_inside!" "..\" >nul
 
                      rem 移出前预测：无冲突，直接移出
                     ) else (
-                        move /y "%%i" "..\" > nul
+                        move /y "%%i" "..\" >nul
                     )   
                 )
 
                 rem 【或】移出单个文件
                 for %%i in ("*") do (
-            
+
                     rem 移出前预测：如有冲突，名称里加上当前时间和3个随机数
                     if exist "..\%%i" (
-                
+
                         rem 文件有扩展名和文件名，需要特殊对待。
                         set new_f_name_inside=%%~ni_【!time:~0,2!-!time:~3,2!-!time:~6,5!_!random!_!random!_!random!】%%~xi
                         ren "%%i" "!new_f_name_inside!"
-                        move /y "!new_f_name_inside!" "..\" > nul
+                        move /y "!new_f_name_inside!" "..\" >nul
 
                      rem 移出前预测：无冲突，直接移出
                     ) else (
-                        move /y "%%i" "..\" > nul
+                        move /y "%%i" "..\" >nul
                     )
                 )
 
-                cd..
+                cd ".."
 
                 rem 删除已经被处理搬空的文件夹（处理之前的视角下的第1级目录）
                 rd /s /q "!new_f_name_outside!"
@@ -162,38 +197,12 @@ for /d %%j in ("*") do (
     )
 )
 
-rem 操作数不为零，说明文件夹的处理没结束；为零的话，还得看看有没有压缩文件需要解压缩。
+rem 操作次数不为零，说明文件夹的处理没结束；为零的话，尝试解压文件，如果没有压缩文件，
+rem 会从“compressed_files_process”跳出循环。
 if !operate_times! GTR 0 (
     goto folder_process
 ) else (
-    rem 统计【目标】文件夹下压缩文件个数（刚才只处理了文件夹（里面的文件或文件夹），没有动这里的文件）
-    cd /d "!target_path!"
-    set /a num_c=0
-    set /a ret=0
-    for %%k in ("*") do (
-        set EXT=%%~xk
-        if "!EXT!" NEQ ".【_解压失败_】" (if "%%k" NEQ "_压缩文件识别器_.exe" (if "%%k" NEQ "_origin_path_.txt" (if "%%k" NEQ "_password_.txt" (if "%%k" NEQ "%~nx0" (if "%%k" NEQ "_folder_names_record_.txt" (if "%%k" NEQ "_rm_list_.txt" (
-                "_压缩文件识别器_.exe" "%%k"
-                set /a ret=!errorlevel!
-                if !ret! EQU 0 (
-                    set /a num_c+=1
-                ) else if !ret! EQU 1 (
-                    ren "%%k" "_t_a_r_g_e_t_.bin"
-                    "_压缩文件识别器_.exe" "_t_a_r_g_e_t_.bin"
-                    set /a ret=!errorlevel!
-                    ren "_t_a_r_g_e_t_.bin" "%%k"
-                    if !ret! EQU 0 (set /a num_c+=1)
-                )
-        )))))))
-    )
-
-    rem 如果个数大于0，意味着有压缩文件。
-    if !num_c! GTR 0 (
-        goto compressed_files_process
-    ) else (
-        rem 没有压缩文件，上一步也确认过没有可以处理的文件夹了，就可以收尾了。
-        goto close_up
-    )
+    goto compressed_files_process
 )
 
 
@@ -203,87 +212,142 @@ if !operate_times! GTR 0 (
 rem 二、【处理压缩文件】
 :compressed_files_process
 rem 启动解压工具
-cd /d "!origin_path!\extracter"
-start "【解压操作中】" /min /wait "extracter.exe" 1 "!target_path!"
-rem 如果出现多层压缩，还得进行文件夹处理。最后会从“文件夹处理”判断并跳出循环。
-cd /d "!target_path!"
-goto folder_process
-
+cd /d "%origin_path%\extracter"
+start "【解压操作中】" /min /wait extracter.exe 1 "%target_path%"
+set /a ret=!errorlevel!
+rem 解压的过程中同时统计压缩文件的个数，如果有压缩文件得到解压，说明还没结束（返回0）；结束时返回1。
+if !ret! EQU 0 (
+    goto folder_process
+) else (
+    goto close_up
+)
 
 
 
 
 :close_up
-cd /d "!target_path!"
+set /a no_origin_path=0
 rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+call :down_spread
+
+rem 执行清理工作
+cd /d "%target_path%"
+if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
+if exist "_folder_names_record_.txt" (del /f /q "_folder_names_record_.txt" >nul)
+rem "_current_path_.txt"被移走到detector目录下了，不需要清理
+
+rem 进行用户定义的删除指定文件操作
+if exist "_rm_list_.txt" (
+    cd /d "%origin_path%\extracter"
+    start "【删除指定文件中】" /min /wait extracter.exe 3 "%target_path%"
+
+    cd /d "%target_path%"
+    if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
+)
+
+cd /d "%origin_path%\extracter"
+rem 到这里一轮处理已经完成并走出循环了，可以放心地将原来打上“解压失败”的文件改回来，方便下一次尝试。
+start "【解除标记中】" /min /wait extracter.exe 6 "%target_path%"
+
+rem 所有文件夹都处理完后，结束。
+if !no_origin_path! EQU 0 (
+    exit 0
+) else (
+    exit 2
+)
+
+
+
+
+
+rem 将bat和必要的文件复制继承到下一级文件夹中（排除空文件夹），挨个启动每个文件夹中的bat，继续下一代的尝试处理。
+:down_spread
+cd /d "%target_path%"
 for /d %%j in ("*") do (
-    cd "%%j"
+    cd /d "%%j"
     if !errorlevel! EQU 0 (
         rem 统计每个文件夹里的项目总数（此时文件访问权限是没问题的）
-        set /a num_c=0
-        for /d %%k in ("*") do (set /a num_c+=1)
-        for %%k in ("*") do (set /a num_c+=1)
+        set /a sum=0
+        call :count_sum
 
         rem 如果不是空文件夹，就执行操作
-        if !num_c! NEQ 0 (
+        if !sum! GTR 0 (
             rem 复制各类信息配置和可执行文件
             rem bandizip、任务栏刷新工具、【组件】文件夹的绝对路径固定，如果已经存在（主程序分配下一个密码的时候），就不需要覆盖。
             rem 先尝试硬链接（少占空间），如果失败，换拷贝。
-            if exist "_origin_path_.txt" (del /f /q "_origin_path_.txt" > nul)
-            mklink /h "_origin_path_.txt" "..\_origin_path_.txt" > nul
-            if not exist "_origin_path_.txt" (copy /y "..\_origin_path_.txt" ".\" > nul)
-
-            rem 检测工具
-            if not exist "_压缩文件识别器_.exe" (mklink /h "_压缩文件识别器_.exe" "..\_压缩文件识别器_.exe" > nul)
-            if not exist "_压缩文件识别器_.exe" (copy /y "..\_压缩文件识别器_.exe" ".\" > nul)
-
+            
             rem 如果存在旧密码，需要覆盖。先删除后拷贝，直接拷贝会拒绝访问。
-            if exist "_password_.txt" (del /f /q "_password_.txt" > nul)
-            mklink /h "_password_.txt" "..\_password_.txt" > nul
-            if not exist "_password_.txt" (copy /y "..\_password_.txt" ".\" > nul)
+            if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
+            rem 密码列表不是必须的
+            if exist "..\_password_.txt" (
+                mklink /h "_password_.txt" "..\_password_.txt" >nul
+                if not exist "_password_.txt" (copy /y "..\_password_.txt" ".\" >nul)
+            )
 
             rem 旧删除列表也是一样
-            if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" > nul)
-            mklink /h "_rm_list_.txt" "..\_rm_list_.txt" > nul
-            if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" > nul)
+            if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
+            rem 删除列表也不是必须的
+            if exist "..\_rm_list_.txt" (
+                mklink /h "_rm_list_.txt" "..\_rm_list_.txt" >nul
+                if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" >nul)
+            )
 
-            rem 指“_child_excuter_1.bat”自身
-            if not exist "%~nx0" (mklink /h "%~nx0" "..\%~nx0" > nul)
-            if not exist "%~nx0" (copy /y "..\%~nx0" ".\" > nul)
+            rem 复制“_child_excuter_1.bat”自身
+            if not exist "_child_excuter_1.bat" (mklink /h "_child_excuter_1.bat" "..\_child_excuter_1.bat" >nul)
+            if not exist "_child_excuter_1.bat" (copy /y "..\_child_excuter_1.bat" ".\" >nul)
 
 
             rem 记录文件"_folder_names_record_.txt"可自动生成，无需复制。
 
 
             rem 启动刚刚复制过来的“子”执行器
-            start "｜子执行器｜" /min /wait "%~nx0"
+            start "｜子执行器｜" /min /wait _child_excuter_1.bat "%origin_path%" %NT_10_up%
+            if !errorlevel! EQU 2 (
+                cd ".."
+                set /a no_origin_path=1
+                goto :EOF
+            )
         )
-        cd..
+
+        cd ".."
     )
 )
-rem 执行清理工作
-cd /d "!target_path!"
-del /f /q "_password_.txt" >nul 2>nul
-del /f /q "_origin_path_.txt" >nul 2>nul
-del /f /q "_folder_names_record_.txt" >nul 2>nul
-del /f /q "_压缩文件识别器_.exe" >nul 2>nul
-rem "_current_path_.txt"被移走到detector目录下了，不需要清理
+goto :EOF
 
-rem 进行用户定义的删除指定文件操作
-cd /d "%origin_path%\extracter"
-start "【删除指定文件中】" /min /wait "extracter.exe" 3 "!target_path!"
 
-cd /d "!target_path!"
-del /f /q "_rm_list_.txt" >nul 2>nul
 
-rem 到这里一轮处理已经完成并走出循环了，可以放心地将原来打上“解压失败”的文件改回来，方便下一次尝试。
-for %%j in ("*【_解压失败_】") do (
-    set replace_name=%%j
-    set replace_name=!replace_name:.【_解压失败_】=!
-    set replace_name=!replace_name:【_解压失败_】=!
-    set replace_name=!replace_name:【_dot_】=.!
-    ren "%%j" "!replace_name!"
+
+
+rem 由于只需要判断num_a和num_b各自是否为0或1，多余的循环会造成时间浪费，
+rem 但批处理中没有break语句，所以“call”和函数里for中的“goto :EOF”组成了break的功能，
+rem 让循环最多进行到“num_x == 2”就行了，如果只进行到“== 1”，无法判断数目是否超过1
+:count_num_a
+for /d %%k in ("*") do (
+    set /a num_a+=1
+    if !num_a! GTR 1 (goto :EOF)
 )
-rem 所有文件夹都处理完后，结束。
-exit
+goto :EOF
 
+
+
+:count_num_b
+for %%k in ("*") do (
+    set /a num_b+=1
+    if !num_b! GTR 1 (goto :EOF)
+)
+goto :EOF
+
+
+
+rem sum大于0即可，更大的数循环会浪费时间，
+rem 但批处理中没有break语句，所以“call”和函数里for中的“goto :EOF”组成了break的功能
+:count_sum
+for /d %%k in ("*") do (
+    set /a sum+=1
+    if !sum! GTR 0 (goto :EOF)
+)
+for %%k in ("*") do (
+    set /a sum+=1
+    if !sum! GTR 0 (goto :EOF)
+)
+goto :EOF
