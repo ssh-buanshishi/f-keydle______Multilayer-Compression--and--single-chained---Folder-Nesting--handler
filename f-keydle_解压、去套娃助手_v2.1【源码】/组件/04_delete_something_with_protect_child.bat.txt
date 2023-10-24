@@ -47,18 +47,8 @@ start "【删除指定文件中】" /min /wait extracter.exe 3 "%target_path%"
 cd /d "%target_path%"
 if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
 
-cd /d "%target_path%"
-for %%j in ("*【_过滤标记_】") do (
-    set replace_name=%%j
-
-    set replace_name=!replace_name:.【_过滤标记_】=!
-
-    set replace_name=!replace_name:【_过滤标记_】=!
-
-    set replace_name=!replace_name:【_dot_】=.!
-
-    ren "%%j" "!replace_name!"
-)
+cd /d "%origin_path%\extracter"
+start "【解除标记中】" /min /wait extracter.exe 6 "%target_path%"
 
 rem 所有文件夹都处理完后，结束。
 if !no_origin_path! EQU 0 (
@@ -89,8 +79,12 @@ for /d %%j in ("*") do (
 
             rem 如果存在旧列表，需要覆盖。先删除后拷贝，直接拷贝会拒绝访问。
             if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
-            mklink /h "_rm_list_.txt" "..\_rm_list_.txt" >nul
-            if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" >nul)
+            rem 删除列表不是必须的
+            if exist "..\_rm_list_.txt" (
+                mklink /h "_rm_list_.txt" "..\_rm_list_.txt" >nul
+                if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" >nul)
+            )
+            
 
             rem 启动刚刚复制过来的“子”执行器
             start "【指定的标题】" /min /wait _child_excuter_4.bat "%origin_path%"

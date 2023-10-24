@@ -154,9 +154,9 @@ if %errorlevel% EQU 0 (
 
 
 rem 开始往这个文件夹中“塞”文件
-rem 转移密码和删除列表
+rem 转移密码
 cd /d "%origin_path%\extracter"
-start "【转移密码和删除列表中】" /min /wait extracter.exe 0 "%target_path%"
+start "【转移密码中】" /min /wait extracter.exe 0 "%target_path%"
 
 cd /d "%origin_path%"
 if exist "密码读取失败.txt" (

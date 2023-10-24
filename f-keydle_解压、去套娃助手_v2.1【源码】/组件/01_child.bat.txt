@@ -23,7 +23,6 @@ rem 从传递过来的参数中读取【组件】文件夹的绝对路径
 set origin_path=%~1
 if not defined origin_path (
     if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
-    if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
     exit 2
 )
 
@@ -234,16 +233,8 @@ rem 执行清理工作
 cd /d "%target_path%"
 if exist "_password_.txt" (del /f /q "_password_.txt" >nul)
 if exist "_folder_names_record_.txt" (del /f /q "_folder_names_record_.txt" >nul)
-rem "_current_path_.txt"被移走到detector目录下了，不需要清理
+rem "_target_path_.txt"被移走到detector目录下了，不需要清理
 
-rem 进行用户定义的删除指定文件操作
-if exist "_rm_list_.txt" (
-    cd /d "%origin_path%\extracter"
-    start "【删除指定文件中】" /min /wait extracter.exe 3 "%target_path%"
-
-    cd /d "%target_path%"
-    if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
-)
 
 cd /d "%origin_path%\extracter"
 rem 到这里一轮处理已经完成并走出循环了，可以放心地将原来打上“解压失败”的文件改回来，方便下一次尝试。
@@ -284,13 +275,6 @@ for /d %%j in ("*") do (
                 if not exist "_password_.txt" (copy /y "..\_password_.txt" ".\" >nul)
             )
 
-            rem 旧删除列表也是一样
-            if exist "_rm_list_.txt" (del /f /q "_rm_list_.txt" >nul)
-            rem 删除列表也不是必须的
-            if exist "..\_rm_list_.txt" (
-                mklink /h "_rm_list_.txt" "..\_rm_list_.txt" >nul
-                if not exist "_rm_list_.txt" (copy /y "..\_rm_list_.txt" ".\" >nul)
-            )
 
             rem 复制“_child_excuter_1.bat”自身
             if not exist "_child_excuter_1.bat" (mklink /h "_child_excuter_1.bat" "..\_child_excuter_1.bat" >nul)
