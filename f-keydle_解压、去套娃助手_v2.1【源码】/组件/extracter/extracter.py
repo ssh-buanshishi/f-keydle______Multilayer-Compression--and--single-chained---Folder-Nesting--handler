@@ -146,11 +146,9 @@ def transfer_rm_list() -> None:
                 file.close
             except:
                 None
-        #要转移删除列表的有模式1和模式4，模式1主要是为了解压，删除列表读取错误可以忽略，
-        #模式4是提取并转移要删除文件的列表，为删除文件（04-xxx.bat）做准备，所以转移中出错要报出来
-        if (_mode_ == 4):
-            os.chdir(_currentPath_)
-            os.system("cd.>删除列表读取失败.txt")   #写一个空白文件方便批处理判断是否出错
+        
+        os.chdir(_currentPath_)
+        os.system("cd.>删除列表读取失败.txt")   #写一个空白文件方便批处理判断是否出错
         #无返回值
         return
 
@@ -173,11 +171,9 @@ def transfer_rm_list() -> None:
         if os.path.exists(_rm_list_file_):
             os.remove(_rm_list_file_)
 
-        #要转移删除列表的有模式1和模式4，模式1主要是为了解压，删除列表读取错误可以忽略，
-        #模式4主要是为了删除指定文件，所以转移中出错要报出来
-        if (_mode_ == 4):
-            os.chdir(_currentPath_)
-            os.system("cd.>删除列表写入失败.txt")   #写一个空白文件方便批处理判断是否出错
+        
+        os.chdir(_currentPath_)
+        os.system("cd.>删除列表写入失败.txt")   #写一个空白文件方便批处理判断是否出错
         #无返回值
         return
 
@@ -244,11 +240,8 @@ def delete_specific_files(recursion:bool) -> None:
         if recursion:
             for file in remove_list:
                 os.system("del /f /s /q " + "\""+file+"\"")
-        #递归为否的情况下（运行“01-xxx.bat”或“04-xxx.nat”时），保护批处理自身不被删
-        elif _mode_ == 1:
-            for file in remove_list:
-                os.system("for \u0025i in (" + "\""+file+"\"" + ") do (if \"\u0025i\" NEQ \"_child_excuter_1.bat\" (del /f /q \"\u0025i\"))")
-        elif _mode_ == 3:
+        #递归为否的情况下（运行“04-xxx.bat”时），保护批处理自身不被删
+        else:
             for file in remove_list:
                 os.system("for \u0025i in (" + "\""+file+"\"" + ") do (if \"\u0025i\" NEQ \"_child_excuter_4.bat\" (del /f /q \"\u0025i\"))")
     #无返回值
@@ -877,7 +870,6 @@ _mode_ = args.mode
 #模式0：解压（01-解多层压缩+解文件夹套娃.bat）前准备
 if _mode_ == 0:
     transfer_password()
-    transfer_rm_list()
     sys.exit(0)
 
 #模式2：运行“03-删除指定文件【不保护压缩文件】.bat”时调用，以【递归】方式删除目标目录下的指定文件
@@ -885,7 +877,7 @@ elif _mode_ == 2:
     delete_specific_files(True)
     sys.exit(0)
 
-#模式3：运行“04-xxx.bat”或“01-xxx.bat”时调用，以【非递归】方式删除目标目录下的指定文件
+#模式3：运行“04-xxx.bat”时调用，以【非递归】方式删除目标目录下的指定文件
 elif _mode_ == 3:
     delete_specific_files(False)
     sys.exit(0)
