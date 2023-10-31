@@ -23,4 +23,4 @@ https://wwkq.lanzoum.com/iieWG0r642bg
 （v1.x）
 
 https://wwkq.lanzouq.com/i3qny17gcibg
-（v2.x）
+（v2.0）
