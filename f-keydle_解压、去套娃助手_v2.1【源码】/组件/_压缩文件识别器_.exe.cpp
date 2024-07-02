@@ -37,6 +37,7 @@ tar ={"\x75\x73\x74\x61\x72",0x101,5},			    *ptar = &tar,
 bz2 ={"\x42\x5a\x68",0,3},						    *pbz2 = &bz2,
 xz  ={"\xfd\x37\x7a\x58\x5a",0,5},					*pxz  = &xz,
 wim ={"\x4d\x53\x57\x49\x4d",0,5},					*pwim = &wim,
+exe ={"\x4d\x5a",0,2},								*pexe = &exe,
 //下面zpaq的两个特征只能在zpaq未加密时才有效 
 zpaq_1={"7kSt",0,4},								*pzpaq_1 = &zpaq_1,
 zpaq_2={"zPQ",0,3},									*pzpaq_2 = &zpaq_2,
@@ -237,6 +238,11 @@ int main(int argc,char *argv[])
 		ret=0;
 	}
 	
+	else if (	match(pexe)	)
+	{
+		//printf("【%s】为exe文件\n",argv[1]);
+		ret=0;
+	}
 	
 	else if (	match(p7z)	)
 	{
