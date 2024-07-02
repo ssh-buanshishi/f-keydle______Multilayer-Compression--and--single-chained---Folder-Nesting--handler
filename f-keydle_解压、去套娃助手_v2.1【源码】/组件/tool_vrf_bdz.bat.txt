@@ -8,8 +8,8 @@ cd /d "%~dp0"
 
 rem 根据系统是64位还是32位准备兼容的bandizip。统一复制成“Bandizip.exe”然后在后面需要时启动，这对压缩失败检测工具根据进程名称锁定窗口有帮助。
 rem 下面两个MD5的值如果升级bandizip，也需要更改。【bandizip_x64_md5】对应“Bandizip.x64.exe”，【bandizip_x86_md5】对应“Bandizip.x86.exe”
-set bandizip_x64_md5=b7e454b08d5a0d0e8856e716dde7bd33
-set bandizip_x86_md5=19e75f850a90e65a96d78f40444dc319
+set bandizip_x64_md5=f25438a99350dae485c8380e7955a134
+set bandizip_x86_md5=e51b39f671e576a69734ca0854a48f2b
 if exist "%windir%\SysWOW64" (
     rem 检查是否存在bandizip
     if exist "BandizipPro_portable\Bandizip.exe" (
