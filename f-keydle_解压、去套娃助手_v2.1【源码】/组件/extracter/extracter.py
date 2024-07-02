@@ -3,9 +3,8 @@
 #Compiled On:                   VMware Workstation 15 Pro (15.5.6 build-16341506)
 #Client Operating System:       Windows 7 32bit [6.1.7601]
 #Python Version:                python 3.8.6(32bit)
-#Pyinstaller Version:           5.13.0
+#Nuitka Version:                2.2.2
 
-#Command:                       pyinstaller -D --console --debug noarchive "extracter.py"
 
 import os,sys
 import argparse
